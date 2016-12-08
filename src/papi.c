@@ -1,4 +1,5 @@
 #include "XSbench_header.h"
+#include "Types.h"
 
 void counter_init( int *eventset, int *num_papi_events )
 {

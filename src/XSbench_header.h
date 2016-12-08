@@ -21,6 +21,7 @@
 #define DEBUG 1
 #define SAVE 1
 
+/*
 // Structures
 typedef struct{
 	double energy;
@@ -43,6 +44,7 @@ typedef struct{
 	int lookups;
 	char * HM;
 } Inputs;
+*/
 
 // Function Prototypes
 void logo(int version);

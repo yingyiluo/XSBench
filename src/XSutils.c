@@ -1,5 +1,5 @@
 #include "XSbench_header.h"
-
+#include "Types.h"
 // Allocates nuclide matrix
 NuclideGridPoint ** gpmatrix(size_t m, size_t n)
 {
