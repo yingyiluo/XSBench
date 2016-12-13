@@ -71,6 +71,7 @@ int binary_search( NuclideGridPoint * A, double quarry, int n )
 
 // Park & Miller Multiplicative Conguential Algorithm
 // From "Numerical Recipes" Second Edition
+
 double rn(unsigned long * seed)
 {
 	double ret;
