@@ -122,7 +122,8 @@ int main( int argc, char* argv[] )
 	num_dpoints = get_num_datapoints(num_nucs);
 
 	int **mats     = load_mats(num_nucs, in.n_isotopes);
-
+	for(i = 0; i < num_dpoints; i++)
+		printf("%d ", (*mats)[i]);
 	#ifdef VERIFICATION
 	double **concs = load_concs_v(num_nucs);
 	#else
@@ -188,34 +189,34 @@ int main( int argc, char* argv[] )
 	cl_event kernel_event;
 	cl_event finish_event;
 	
-	printf("before enqueue write buffer.\n");	
+	//printf("before enqueue write buffer.\n");	
 	status = clEnqueueWriteBuffer(queue, num_nucs_buf, CL_TRUE, 0, 12*sizeof(int), num_nucs, 0, NULL, &write_events[0]);
 	checkError(status, "Failed to enqueue write buffer.\n");
-	printf("enqueued num_nucs_buf.\n");
+	//printf("enqueued num_nucs_buf.\n");
 	
 	status = clEnqueueWriteBuffer(queue, concs_buf, CL_TRUE, 0, num_dpoints*sizeof(double), *concs, 0, NULL, &write_events[1]);
         checkError(status, "Failed to enqueue write buffer.\n");
-	printf("enqueued concs_buf.\n");
+	//printf("enqueued concs_buf.\n");
 
 	status = clEnqueueWriteBuffer(queue, energy_grid_buf, CL_TRUE, 0, n_iso_grid*sizeof(double), energy, 0, NULL, &write_events[2]);
         checkError(status, "Failed to enqueue write buffer.\n");
-	printf("enqueued energy_grid_buf.\n");
-	printf("n_iso_grid = %d\n", n_iso_grid);
-	printf("n_isotopes = %d\n", in.n_isotopes);
+	//printf("enqueued energy_grid_buf.\n");
+	//printf("n_iso_grid = %d\n", n_iso_grid);
+	//printf("n_isotopes = %d\n", in.n_isotopes);
 	//for(i = 0; i < n_iso_grid; i++){
 	
 		status = clEnqueueWriteBuffer(queue, energy_grid_xs_buf, CL_TRUE, 0, n_iso_grid*in.n_isotopes*sizeof(int), energy_xs, 0, NULL, NULL);
 	//printf("i = %d\n", i);
 	//}
-	printf("enqueued energy_grid_xs_buf.\n");
+	//printf("enqueued energy_grid_xs_buf.\n");
 
 	status = clEnqueueWriteBuffer(queue, nuclide_grids_buf, CL_TRUE, 0, n_iso_grid*sizeof(NuclideGridPoint), *nuclide_grids, 0, NULL, &write_events[3]);
         checkError(status, "Failed to enqueue write buffer.\n");
-	printf("enqueued nuclide_grids_buf.\n");
+	//printf("enqueued nuclide_grids_buf.\n");
 	status = clEnqueueWriteBuffer(queue, mats_buf, CL_TRUE, 0, num_dpoints*sizeof(int), *mats, 0, NULL, &write_events[4]);
         checkError(status, "Failed to enqueue write buffer.\n");
 	
-	printf("after enqueue write buffer.\n");
+	//printf("after enqueue write buffer.\n");
 
 	int arg = 0;	
 	#ifdef VERIFICATION
@@ -253,8 +254,9 @@ int main( int argc, char* argv[] )
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &macro_xs_vector_buf);
 	checkError(status, "failed to ser arg 7");
 
-	printf("after set kernel args\n");
+	//printf("after set kernel args\n");
 	size_t global_work_size = in.lookups; 
+	//size_t local_work_size = 
 	status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
        		 &global_work_size, NULL, 5, write_events, &kernel_event);
     	checkError(status, "Failed to launch kernel");

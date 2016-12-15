@@ -16,7 +16,7 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 	// we're not reading off the end of the nuclide's grid
         long index = nuc * n_gridpoints;
        	long index_xs = idx*n_isotopes + nuc;
-	printf("grid_xs = %d\n", energy_grid_xs[index_xs]);
+//	printf("grid_xs = %d\n", energy_grid_xs[index_xs]);
 
 	if(energy_grid_xs[index_xs] == n_gridpoints - 1 ){
 		low = nuclide_grids[index + energy_grid_xs[index_xs] - 1];
@@ -27,7 +27,7 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
                 high = nuclide_grids[index + energy_grid_xs[index_xs] + 1];
 		//low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc]];
 	}
-	printf("nuclide_grid high total xs is %f\n", high.total_xs);	
+//	printf("nuclide_grid high total xs is %f\n", high.total_xs);	
 	//high = low + 1;
 	
 	// calculate the re-useable interpolation factor
@@ -161,8 +161,8 @@ __kernel void calculate_macro_xs(
 //	if(verification == 1)
 //		ulong seed = 1337;
 //	else 
-		ulong seed = (thread+1)*19+17;
-	
+		ulong seed = (thread+1)*19+17;	
+	//printf("seed is %ld \n", seed);	
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
 
@@ -176,11 +176,11 @@ __kernel void calculate_macro_xs(
 	for( int k = 0; k < 5; k++ )
 		macro_xs_vector[k] = 0;
 
-	printf("before grid_search.\n");
+	//printf("before grid_search.\n");
 	// binary search for energy on unionized energy grid (UEG)
 	idx = grid_search( n_isotopes * n_gridpoints, p_energy,
 	                   energy_grid);	
-	printf("grid search idx = %ld\n", idx);	
+	//printf("grid search idx = %ld\n", idx);	
 
         //calculate the index for mats and concs from 2d array
 	int index = 0;
@@ -194,17 +194,17 @@ __kernel void calculate_macro_xs(
 	// micro XS is multiplied by the concentration of that nuclide
 	// in the material, and added to the total macro XS array.
 
-	printf("before calculate_micro_xs for loop. index = %d\n", index);
-	printf("num_nucs = %d\n", num_nucs[mat]);
+	//printf("before calculate_micro_xs for loop. index = %d\n", index);
+	//printf("num_nucs = %d\n", num_nucs[mat]);
 	#pragma unroll 2
 	for( int j = 0; j < num_nucs[mat]; j++ )
 	{
-                printf("j = %d\n", j);
+                //printf("j = %d\n", j);
 		int index_j = index + j;
 		//p_nuc = mats[mat][j];
 		//conc = concs[mat][j];
-		printf("index_j = %d\n", index_j);
-         	printf("p_nuc = %d\n", mats[index_j]);
+		//printf("index_j = %d\n", index_j);
+         	//printf("p_nuc = %d\n", mats[index_j]);
 	        //printf("conc = %f\n", concs[index_j]);
 		p_nuc = mats[index_j];
                 conc = concs[index_j];
@@ -217,10 +217,10 @@ __kernel void calculate_macro_xs(
 	}
 	
 	//test
-	
+/*	
 	for( int k = 0; k < 5; k++ )
-		printf("Energy: %lf, Material: %d, XSVector[%d]: %lf\n",
-		       p_energy, mat, k, macro_xs_vector[k]);
-	
+		printf("thread: %d, seed: %ld, Energy: %lf, Material: %d, XSVector[%d]: %lf\n",
+		       thread, seed, p_energy, mat, k, macro_xs_vector[k]);
+*/	
 }
 
