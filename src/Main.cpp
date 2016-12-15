@@ -13,7 +13,7 @@ using namespace aocl_utils;
 //inputs
 Inputs in; 
 int num_dpoints = 0;
-
+int n_iso_grid;
 //OPENCL config
 cl_platform_id platform = NULL;
 cl_device_id device = NULL;
@@ -27,7 +27,7 @@ cl_mem num_nucs_buf, concs_buf, energy_grid_buf, energy_grid_xs_buf, nuclide_gri
 //static functions
 static bool init_ocl();
 static int get_num_datapoints(int *);
-static void cleanup();
+void cleanup();
 
 int main( int argc, char* argv[] )
 {
@@ -42,7 +42,6 @@ int main( int argc, char* argv[] )
 	double omp_start, omp_end, p_energy;
 	unsigned long long vhash = 0;
 	int nprocs;
-	int n_iso_grid = in.n_isotopes*in.n_gridpoints;
 
 	#ifdef MPI
 	MPI_Status stat;
@@ -62,7 +61,7 @@ int main( int argc, char* argv[] )
 	// Process CLI Fields -- store in "Inputs" structure
 	//Inputs in = read_CLI( argc, argv );
 	in = read_CLI( argc, argv );
-
+ 	n_iso_grid = in.n_isotopes*in.n_gridpoints;
 	// Set number of OpenMP Threads
 	omp_set_num_threads(in.nthreads); 
 
@@ -98,11 +97,10 @@ int main( int argc, char* argv[] )
 	GridPoint * energy_grid = generate_energy_grid( in.n_isotopes,
 	                          in.n_gridpoints, nuclide_grids ); 	
 	#else
-	GridPoint * energy_grid = (GridPoint *)malloc( in.n_isotopes *
-	                           in.n_gridpoints * sizeof( GridPoint ) );
-	int * index_data = (int *) malloc( in.n_isotopes * in.n_gridpoints
+	GridPoint * energy_grid = (GridPoint *)malloc( n_iso_grid * sizeof( GridPoint ) );
+	int * index_data = (int *) malloc( n_iso_grid
 	                   * in.n_isotopes * sizeof(int));
-	for( i = 0; i < in.n_isotopes*in.n_gridpoints; i++ )
+	for( i = 0; i < n_iso_grid; i++ )
 		energy_grid[i].xs_ptrs = &index_data[i*in.n_isotopes];
 	#endif
 
@@ -176,33 +174,49 @@ int main( int argc, char* argv[] )
 	double macro_xs_vector[5];
 	//double * xs = (double *) calloc(5, sizeof(double));
 	double *energy = (double *) malloc(n_iso_grid*sizeof(double));
-	for(i = 0; i < n_iso_grid; i++)
+	int *energy_xs = (int*) malloc(n_iso_grid*in.n_isotopes*sizeof(int));	
+	for(i = 0; i < n_iso_grid; i++){
 		energy[i] = energy_grid[i].energy;
-
+		int j; 
+		int index = i * in.n_isotopes;
+		for(j = 0; j < in.n_isotopes; j++)
+			energy_xs[index + j] = energy_grid[i].xs_ptrs[j];
+	}
+	
 	cl_int status;
 	cl_event write_events[5];
 	cl_event kernel_event;
 	cl_event finish_event;
 	
+	printf("before enqueue write buffer.\n");	
 	status = clEnqueueWriteBuffer(queue, num_nucs_buf, CL_TRUE, 0, 12*sizeof(int), num_nucs, 0, NULL, &write_events[0]);
 	checkError(status, "Failed to enqueue write buffer.\n");
-
-	status = clEnqueueWriteBuffer(queue, concs_buf, CL_TRUE, 0, num_dpoints*sizeof(double), concs, 0, NULL, &write_events[1]);
-        checkError(status, "Failed to enqueue write buffer.\n");
+	printf("enqueued num_nucs_buf.\n");
 	
+	status = clEnqueueWriteBuffer(queue, concs_buf, CL_TRUE, 0, num_dpoints*sizeof(double), *concs, 0, NULL, &write_events[1]);
+        checkError(status, "Failed to enqueue write buffer.\n");
+	printf("enqueued concs_buf.\n");
+
 	status = clEnqueueWriteBuffer(queue, energy_grid_buf, CL_TRUE, 0, n_iso_grid*sizeof(double), energy, 0, NULL, &write_events[2]);
         checkError(status, "Failed to enqueue write buffer.\n");
+	printf("enqueued energy_grid_buf.\n");
+	printf("n_iso_grid = %d\n", n_iso_grid);
+	printf("n_isotopes = %d\n", in.n_isotopes);
+	//for(i = 0; i < n_iso_grid; i++){
+	
+		status = clEnqueueWriteBuffer(queue, energy_grid_xs_buf, CL_TRUE, 0, n_iso_grid*in.n_isotopes*sizeof(int), energy_xs, 0, NULL, NULL);
+	//printf("i = %d\n", i);
+	//}
+	printf("enqueued energy_grid_xs_buf.\n");
 
-	for(i = 0; i < n_iso_grid; i++){
-		status = clEnqueueWriteBuffer(queue, energy_grid_xs_buf, CL_TRUE, i*in.n_isotopes, in.n_isotopes*sizeof(int), energy_grid[i].xs_ptrs, 0, NULL, NULL);
-	}
-
-	status = clEnqueueWriteBuffer(queue, nuclide_grids_buf, CL_TRUE, 0, n_iso_grid*sizeof(NuclideGridPoint), nuclide_grids, 0, NULL, &write_events[3]);
+	status = clEnqueueWriteBuffer(queue, nuclide_grids_buf, CL_TRUE, 0, n_iso_grid*sizeof(NuclideGridPoint), *nuclide_grids, 0, NULL, &write_events[3]);
         checkError(status, "Failed to enqueue write buffer.\n");
-
-	status = clEnqueueWriteBuffer(queue, mats_buf, CL_TRUE, 0, num_dpoints*sizeof(int), mats, 0, NULL, &write_events[4]);
+	printf("enqueued nuclide_grids_buf.\n");
+	status = clEnqueueWriteBuffer(queue, mats_buf, CL_TRUE, 0, num_dpoints*sizeof(int), *mats, 0, NULL, &write_events[4]);
         checkError(status, "Failed to enqueue write buffer.\n");
 	
+	printf("after enqueue write buffer.\n");
+
 	int arg = 0;	
 	#ifdef VERIFICATION
 		unsigned int verification = 1;
@@ -239,18 +253,19 @@ int main( int argc, char* argv[] )
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &macro_xs_vector_buf);
 	checkError(status, "failed to ser arg 7");
 
+	printf("after set kernel args\n");
 	size_t global_work_size = in.lookups; 
 	status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
        		 &global_work_size, NULL, 5, write_events, &kernel_event);
     	checkError(status, "Failed to launch kernel");
 	
-	status = clEnqueueReadBuffer(queue, macro_xs_vector_buf, CL_TRUE, 0, 5*sizeof(double), macro_xs_vector, &kernel_event, &finish_event);
+	status = clEnqueueReadBuffer(queue, macro_xs_vector_buf, CL_TRUE, 0, 5*sizeof(double), macro_xs_vector, 1, &kernel_event, &finish_event);
 	
-	clReleaseEvent(write_event[0]);
-    	clReleaseEvent(write_event[1]);
- 	clReleaseEvent(write_event[2]);
-    	clReleaseEvent(write_event[3]);
-	clReleaseEvent(write_event[4]);
+	clReleaseEvent(write_events[0]);
+    	clReleaseEvent(write_events[1]);
+ 	clReleaseEvent(write_events[2]);
+    	clReleaseEvent(write_events[3]);
+	clReleaseEvent(write_events[4]);
 	
 //	memcpy(xs, macro_xs_vector, 5*sizeof(double));
 
@@ -319,7 +334,7 @@ static bool init_ocl()
   	status = clBuildProgram(program, 0, NULL, "", NULL, NULL);
 	checkError(status, "Failed to build program.\n");
 	
-	const char *kernel_name = "CalculateXS";
+	const char *kernel_name = "calculate_macro_xs";
 	kernel = clCreateKernel(program, kernel_name, &status);
 	checkError(status, "Failed to create kernel.\n");
 
@@ -348,7 +363,7 @@ static bool init_ocl()
 	return true;
 }
 
-static void cleanup()
+void cleanup()
 {
 	if(kernel)
                 clReleaseKernel(kernel);

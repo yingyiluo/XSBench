@@ -38,8 +38,8 @@ GridInit.c \
 XSutils.c \
 Materials.c
 
-obj = io.o GridInit.o XSutils.o Materials.o Main.o
-
+obj = Main.o io.o GridInit.o XSutils.o Materials.o 
+#obj = $(source:.c=.o .cpp=.o)
 #===============================================================================
 # Sets Flags
 #===============================================================================
@@ -131,12 +131,14 @@ endif
 # Targets to Build
 #===============================================================================
 
-$(program): $(obj) Types.h XSbench_header.h
-	$(CC) $(CFLAGS) $(obj) $(COMMON_FILES) -o $@ $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
+#$(program): $(obj) Types.h XSbench_header.h
+#	g++ -fopenmp $(obj) $(COMMON_FILES) -o $@ $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@ $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
+#%.o: %.c %.cpp
+#	$(CC) $(CFLAGS) -c $< -o $@ 
 
+all:
+	g++ -fopenmp $(source) $(COMMON_FILES) -o $(program) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
 clean:
 	rm -rf $(program) $(obj)
 
