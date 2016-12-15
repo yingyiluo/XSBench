@@ -2,11 +2,11 @@
 
 // Calculates the microscopic cross section for a given nuclide & energy
 void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
-                           long n_gridpoints,
-                           __global GridPoint * restrict energy_grid,
+                           long n_gridpoints, 
+			   __global int * restrict energy_grid_xs,
                            __global NuclideGridPoint * restrict nuclide_grids,
                            int idx, 
-                           __global double * restrict xs_vector ){
+                           double * restrict xs_vector ){
 	
 	// Variables
 	double f;
@@ -14,14 +14,15 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 	NuclideGridPoint low, high;
 	// pull ptr from energy grid and check to ensure that
 	// we're not reading off the end of the nuclide's grid
-        long index = nuc * n_gridpoints; 
-	if( energy_grid[idx].xs_ptrs[nuc] == n_gridpoints - 1 ){
-		low = nuclide_grids[index + energy_grid[idx].xs_ptrs[nuc] - 1];
-	        high = nuclide_grids[index + energy_grid[idx].xs_ptrs[nuc]];
+        long index = nuc * n_gridpoints;
+       	long index_xs = idx*n_isotopes + nuc;
+	if(energy_grid_xs[index_xs] == n_gridpoints - 1 ){
+		low = nuclide_grids[index + energy_grid_xs[index_xs] - 1];
+	        high = nuclide_grids[index + energy_grid_xs[index_xs]];
                 //low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc] - 1];
 	}else{
-		low = nuclide_grids[index + energy_grid[idx].xs_ptrs[nuc]];
-                high = nuclide_grids[index + energy_grid[idx].xs_ptrs[nuc] + 1];
+		low = nuclide_grids[index + energy_grid_xs[index_xs]];
+                high = nuclide_grids[index + energy_grid_xs[index_xs] + 1];
 		//low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc]];
 	}
 	//high = low + 1;
@@ -59,7 +60,7 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 
 // (fixed) binary search for energy on unionized energy grid
 // returns lower index
-long grid_search( long n, double quarry, __global GridPoint * A)
+long grid_search( long n, double quarry, __global double * A)
 {
 	long lowerLimit = 0;
 	long upperLimit = n-1;
@@ -70,7 +71,7 @@ long grid_search( long n, double quarry, __global GridPoint * A)
 	{
 		examinationPoint = lowerLimit + ( length / 2 );
 		
-		if( A[examinationPoint].energy > quarry )
+		if( A[examinationPoint] > quarry )
 			upperLimit = examinationPoint;
 		else
 			lowerLimit = examinationPoint;
@@ -89,8 +90,8 @@ double rn(unsigned long * seed)
         unsigned long n1;
         unsigned long a = 16807;
         unsigned long m = 2147483647;
-        n1 = ( a * (seed) ) % m;
-        seed = n1;
+        n1 = ( a * (*seed) ) % m;
+        *seed = n1;
         ret = (double) n1 / m;
         return ret;
 }
@@ -142,21 +143,23 @@ int pick_mat( unsigned long * seed )
 }
 
 // Calculates macroscopic cross section based on a given material & energy 
-__kernel void calculate_macro_xs(// double p_energy, int mat,
-                        __contant uint verification, 
-			__contant long n_isotopes, __constant long n_gridpoints,
+__kernel void calculate_macro_xs(
+                        const uint verification, 
+		        const long n_isotopes, __const long n_gridpoints,
                          __global int * restrict num_nucs,
                          __global double * restrict concs,
-                         __global GridPoint * restrict energy_grid,
-                         __global NuclideGridPoint * restrict nuclide_grids,
+                         __global double * restrict energy_grid,
+                         __global int * restrict energy_grid_xs,
+			 __global NuclideGridPoint * restrict nuclide_grids,
                          __global int * restrict mats,
                          __global double * restrict macro_xs_vector ){
 
 	int thread = get_global_id(0);
-	if(v == 1)
-		static ulong seed = 1337;
+	if(verification == 1)
+		ulong seed = 1337;
 	else 
 		ulong seed = (thread+1)*19+17;
+	
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
 
@@ -195,7 +198,7 @@ __kernel void calculate_macro_xs(// double p_energy, int mat,
                 p_nuc = mats[index];
                 conc = concs[index];
 		calculate_micro_xs( p_energy, p_nuc, n_isotopes,
-		                    n_gridpoints, energy_grid,
+		                    n_gridpoints, energy_grid_xs,
 		                    nuclide_grids, idx, xs_vector );
 		#pragma unroll 
 		for( int k = 0; k < 5; k++ )

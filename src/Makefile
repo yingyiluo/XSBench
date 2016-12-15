@@ -20,15 +20,25 @@ BINARY_READ = no
 
 program = XSBench
 
+ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
+$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation)
+endif
+ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
+$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation.)
+endif
+
+COMMON_FILES = ../common/src/AOCL_Utils.cpp
+AOCL_COMPILE_CONFIG=$(shell aocl compile-config) -I../common/inc
+AOCL_LINK_CONFIG=$(shell aocl link-config) -lnalla_pcie_mmd
+
 source = \
-Main.c \
+Main.cpp \
 io.c \
-CalculateXS.c \
 GridInit.c \
 XSutils.c \
 Materials.c
 
-obj = $(source:.c=.o)
+obj = io.o GridInit.o XSutils.o Materials.o Main.o
 
 #===============================================================================
 # Sets Flags
@@ -121,11 +131,11 @@ endif
 # Targets to Build
 #===============================================================================
 
-$(program): $(obj) XSbench_header.h
-	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
+$(program): $(obj) Types.h XSbench_header.h
+	$(CC) $(CFLAGS) $(obj) $(COMMON_FILES) -o $@ $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
 
 clean:
 	rm -rf $(program) $(obj)

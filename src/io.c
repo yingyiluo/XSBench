@@ -1,5 +1,6 @@
-#include "XSbench_header.h"
 #include "Types.h"
+#include "XSbench_header.h"
+
 
 #ifdef MPI
 #include<mpi.h>
