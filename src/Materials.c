@@ -7,7 +7,9 @@
 // num_nucs represents the number of nuclides that each material contains
 int * load_num_nucs(long n_isotopes)
 {
-	int * num_nucs = (int*)malloc(12*sizeof(int));
+//	int * num_nucs = (int*)malloc(12*sizeof(int));
+	int * num_nucs = NULL;
+	posix_memalign((void**)&num_nucs, AOCL_ALIGN, 12*sizeof(int));
 	
 	// Material 0 is a special case (fuel). The H-M small reactor uses
 	// 34 nuclides, while H-M larges uses 300.
@@ -36,7 +38,9 @@ int ** load_mats( int * num_nucs, long n_isotopes )
 {
 	//may not be in the contiguous space
 	
-	int ** mats = (int **) malloc( 12 * sizeof(int *) );
+	//int ** mats = (int**)malloc( 12 * sizeof(int *) );
+	int **mats = NULL;
+	posix_memalign((void**)&mats, AOCL_ALIGN, 12*sizeof(int*));
 /*	for( int i = 0; i < 12; i++ )
 		mats[i] = (int *) malloc(num_nucs[i] * sizeof(int) );
 */
@@ -44,7 +48,8 @@ int ** load_mats( int * num_nucs, long n_isotopes )
 	int nucs_count = 0;
 	for(int i = 0; i < 12; i++)
 		nucs_count += num_nucs[i];
-	int *mat_sub = (int*) malloc(nucs_count*sizeof(int));
+	int *mat_sub = NULL;
+	posix_memalign( (void**)&mat_sub, AOCL_ALIGN, nucs_count*sizeof(int) );
 	int count_sub = 0;	
 	for(int i = 0; i < 12; i++){
 		mats[i] = &mat_sub[count_sub];
@@ -126,11 +131,15 @@ int ** load_mats( int * num_nucs, long n_isotopes )
 // Creates a randomized array of 'concentrations' of nuclides in each mat
 double ** load_concs( int * num_nucs )
 {
-	double ** concs = (double **)malloc( 12 * sizeof( double *) );
+	double ** concs = NULL;
+	posix_memalign((void**)&concs, AOCL_ALIGN, 12*sizeof(double*)); 
+	//(double **)malloc( 12 * sizeof( double *) );
 	int nucs_count = 0;
 	for(int i = 0; i < 12; i++)
 		nucs_count += num_nucs[i];
-	double *concs_sub = (double*) malloc(nucs_count*sizeof(double));
+	double *concs_sub = NULL;
+	posix_memalign((void**)&concs_sub, AOCL_ALIGN, nucs_count*sizeof(double));
+
 	int count_sub = 0;	
 	for(int i = 0; i < 12; i++){
 		concs[i] = &concs_sub[count_sub];
@@ -211,11 +220,11 @@ int pick_mat( unsigned long * seed )
 	dist[11] = 0.013;	// bottom of fuel assemblies
 	
 	//double roll = (double) rand() / (double) RAND_MAX;
-	#ifdef VERIFICATION
-	double roll = rn_v();
-	#else
+//	#ifdef VERIFICATION
+//	double roll = rn_v();
+//	#else
 	double roll = rn(seed);
-	#endif
+//	#endif
 
 	// makes a pick based on the distro
 	for( int i = 0; i < 12; i++ )

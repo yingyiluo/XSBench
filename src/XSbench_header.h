@@ -2,6 +2,8 @@
 #define __XSBENCH_HEADER_H__
 
 #include "Types.h"
+#include "CL/opencl.h"
+#include "../common/inc/AOCL_Utils.h"
 #include<stdio.h>
 #include<stdlib.h>
 #include<time.h>
@@ -22,6 +24,7 @@
 #define DEBUG 1
 #define SAVE 1
 
+const unsigned AOCL_ALIGN = 64; //enable DMA
 /*
 // Structures
 typedef struct{

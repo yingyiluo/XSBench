@@ -5,10 +5,10 @@
 NuclideGridPoint ** gpmatrix(size_t m, size_t n)
 {
 	int i,j;
-	NuclideGridPoint * full = (NuclideGridPoint *) malloc( m * n *
-	                          sizeof( NuclideGridPoint ) );
-	NuclideGridPoint ** M = (NuclideGridPoint **) malloc( m *
-	                          sizeof(NuclideGridPoint *) );
+	NuclideGridPoint * full = NULL;
+	posix_memalign((void**)&full, AOCL_ALIGN, m * n * sizeof( NuclideGridPoint ) );
+	NuclideGridPoint ** M = NULL;
+	posix_memalign((void**)&M, AOCL_ALIGN, m * sizeof(NuclideGridPoint *) );
 
 	for( i = 0, j=0; i < m*n; i++ )
 		if( i % n == 0 )

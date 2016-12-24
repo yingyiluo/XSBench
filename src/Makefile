@@ -9,7 +9,7 @@ PROFILE     = no
 MPI         = no
 PAPI        = no
 VEC_INFO    = no
-VERIFY      = no
+VERIFY      = yes
 BENCHMARK   = no
 BINARY_DUMP = no
 BINARY_READ = no
@@ -30,6 +30,8 @@ endif
 COMMON_FILES = ../common/src/AOCL_Utils.cpp
 AOCL_COMPILE_CONFIG=$(shell aocl compile-config) -I../common/inc
 AOCL_LINK_CONFIG=$(shell aocl link-config) -lnalla_pcie_mmd
+RAPL_H = -I../etrace 
+LDFLAGS_RAPL = -Letrace -lrapl_reader
 
 source = \
 Main.cpp \
@@ -45,14 +47,14 @@ obj = Main.o io.o GridInit.o XSutils.o Materials.o
 #===============================================================================
 
 # Standard Flags
-CFLAGS := -std=gnu99
+#CFLAGS := -std=gnu99
 
 # Linker Flags
 LDFLAGS = -lm
 
 # Regular gcc Compiler
 ifeq ($(COMPILER),gnu)
-  CC = gcc
+  CC = g++
   CFLAGS += -fopenmp
 endif
 
@@ -138,7 +140,8 @@ endif
 #	$(CC) $(CFLAGS) -c $< -o $@ 
 
 all:
-	g++ -fopenmp $(source) $(COMMON_FILES) -o $(program) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
+	g++ $(CFLAGS) $(source) $(COMMON_FILES) -o $(program) $(RAPL_H) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
+
 clean:
 	rm -rf $(program) $(obj)
 

@@ -147,36 +147,38 @@ int pick_mat( unsigned long * seed )
 
 // Calculates macroscopic cross section based on a given material & energy 
 __kernel void calculate_macro_xs(
-                        const uint verification, 
-		        const long n_isotopes, __const long n_gridpoints,
+			 const uint verification,  
+		         const long n_isotopes, 
+		 	 const long n_gridpoints,
                          __global int * restrict num_nucs,
                          __global double * restrict concs,
                          __global double * restrict energy_grid,
                          __global int * restrict energy_grid_xs,
 			 __global NuclideGridPoint * restrict nuclide_grids,
                          __global int * restrict mats,
-                         __global double * restrict macro_xs_vector ){
+                         __global ulong * restrict vhash ){
 
-	int thread = get_global_id(0);
-//	if(verification == 1)
-//		ulong seed = 1337;
-//	else 
-		ulong seed = (thread+1)*19+17;	
-	//printf("seed is %ld \n", seed);	
+	int thread = get_group_id(0);
+	ulong seed = (thread+1)*19+17;	
+	// printf("seed is %ld \n", seed);	
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
-
         double xs_vector[5];
+	double macro_xs_vector[5] = {0};
 	int p_nuc; // the nuclide we are looking up
 	long idx = 0;	
 	double conc; // the concentration of the nuclide in the material
-
+	
+	//for verification
+	unsigned int hash = 5381;	
+	vhash[thread] = 0;
+/*
 	// cleans out macro_xs_vector
 	#pragma unroll 
 	for( int k = 0; k < 5; k++ )
 		macro_xs_vector[k] = 0;
+*/
 
-	//printf("before grid_search.\n");
 	// binary search for energy on unionized energy grid (UEG)
 	idx = grid_search( n_isotopes * n_gridpoints, p_energy,
 	                   energy_grid);	
@@ -201,8 +203,6 @@ __kernel void calculate_macro_xs(
 	{
                 //printf("j = %d\n", j);
 		int index_j = index + j;
-		//p_nuc = mats[mat][j];
-		//conc = concs[mat][j];
 		//printf("index_j = %d\n", index_j);
          	//printf("p_nuc = %d\n", mats[index_j]);
 	        //printf("conc = %f\n", concs[index_j]);
@@ -215,7 +215,17 @@ __kernel void calculate_macro_xs(
 		for( int k = 0; k < 5; k++ )
 			macro_xs_vector[k] += xs_vector[k] * conc;
 	}
+
+	if(verification == 1){
+//		printf("p_energy is %f, mat is %d\n", p_energy, mat);
+		hash = ((hash << 5) + hash) + (int)p_energy;
+		hash = ((hash << 5) + hash) + (int)mat;
+		for(int k = 0; k < 5; k++)
+			hash = ((hash << 5) + hash) + macro_xs_vector[k];
+		vhash[thread] = hash % 10000;
+	}
 	
+
 	//test
 /*	
 	for( int k = 0; k < 5; k++ )

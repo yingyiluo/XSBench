@@ -4,6 +4,8 @@
 #include "CL/opencl.h"
 #include "../common/inc/AOCL_Utils.h"
 
+#include "../etrace/rapl_reader.h"
+
 using namespace aocl_utils; 
 
 #ifdef MPI
@@ -21,26 +23,43 @@ cl_context context = NULL;
 cl_command_queue queue = NULL;
 cl_kernel kernel = NULL;
 cl_program program = NULL;
-cl_mem macro_xs_vector_buf;
+cl_mem vhash_buf;
 cl_mem num_nucs_buf, concs_buf, energy_grid_buf, energy_grid_xs_buf, nuclide_grids_buf, mats_buf; 
+//time measurements
+double start_ts_sec;
+double ocl_start_ts_sec;
+double ocl_kernel_ts_sec;
+double ocl_post_ts_sec;
+double ocl_end_ts_sec;
+double end_ts_sec;
+cl_ulong profiled_kernel_time_ns;
 
-//static functions
+//functions
 static bool init_ocl();
 static int get_num_datapoints(int *);
 void cleanup();
+double gettimesec();
+double bw();
+long grid_search(long, double, GridPoint *);
+void calculate_micro_xs( double, int, long, long, GridPoint*, NuclideGridPoint **, int, double * );	
+
+//void snap_energy();
+//void report_energy();
 
 int main( int argc, char* argv[] )
 {
 	// =====================================================================
 	// Initialization & Command Line Read-In
 	// =====================================================================
+	start_ts_sec = gettimesec();
+	
 	int version = 13;
 	int mype = 0;
 	//int max_procs = omp_get_num_procs();
 	int i;	// thread, mat;
 	//unsigned long seed;
 	double omp_start, omp_end, p_energy;
-	unsigned long long vhash = 0;
+	//unsigned long long vhash = 0;
 	int nprocs;
 
 	#ifdef MPI
@@ -63,7 +82,7 @@ int main( int argc, char* argv[] )
 	in = read_CLI( argc, argv );
  	n_iso_grid = in.n_isotopes*in.n_gridpoints;
 	// Set number of OpenMP Threads
-	omp_set_num_threads(in.nthreads); 
+//	omp_set_num_threads(in.nthreads); 
 
 	// Print-out of Input Summary
 	if( mype == 0 )
@@ -80,11 +99,11 @@ int main( int argc, char* argv[] )
 	
 	NuclideGridPoint ** nuclide_grids = gpmatrix(in.n_isotopes,in.n_gridpoints);
 	
-	#ifdef VERIFICATION
-	generate_grids_v( nuclide_grids, in.n_isotopes, in.n_gridpoints );	
-	#else
+	//#ifdef VERIFICATION
+	//generate_grids_v( nuclide_grids, in.n_isotopes, in.n_gridpoints );	
+	//#else
 	generate_grids( nuclide_grids, in.n_isotopes, in.n_gridpoints );	
-	#endif
+	//#endif
 	
 	// Sort grids by energy
 	#ifndef BINARY_READ
@@ -118,17 +137,14 @@ int main( int argc, char* argv[] )
 	// Get material data
 	if( mype == 0 )
 		printf("Loading Mats...\n");
-	int *num_nucs  = load_num_nucs(in.n_isotopes);
+	int* num_nucs  = load_num_nucs(in.n_isotopes);
 	num_dpoints = get_num_datapoints(num_nucs);
 
 	int **mats     = load_mats(num_nucs, in.n_isotopes);
-	for(i = 0; i < num_dpoints; i++)
-		printf("%d ", (*mats)[i]);
-	#ifdef VERIFICATION
-	double **concs = load_concs_v(num_nucs);
-	#else
+	//for(i = 0; i < num_dpoints; i++)
+	//	printf("%d ", (*mats)[i]);
+	
 	double **concs = load_concs(num_nucs);
-	#endif
 
 	#ifdef BINARY_DUMP
 	if( mype == 0 ) printf("Dumping data to binary file...\n");
@@ -158,24 +174,16 @@ int main( int argc, char* argv[] )
 		border_print();
 	}
 
-//	omp_start = omp_get_wtime();
-/**  
-	//initialize papi with one thread (master) here
-	#ifdef PAPI
-	if ( PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT){
-		fprintf(stderr, "PAPI library init error!\n");
-		exit(1);
-	}
-	#endif	
-**/
 	//OpenCL initilization
 	if( !init_ocl() )
 		return -1;
  	
-	double macro_xs_vector[5];
-	//double * xs = (double *) calloc(5, sizeof(double));
-	double *energy = (double *) malloc(n_iso_grid*sizeof(double));
-	int *energy_xs = (int*) malloc(n_iso_grid*in.n_isotopes*sizeof(int));	
+	unsigned long *vhash = NULL;
+	posix_memalign((void**)&vhash, AOCL_ALIGN, in.nthreads*sizeof(unsigned long));
+	double *energy = NULL;
+	posix_memalign((void**)&energy, AOCL_ALIGN, n_iso_grid*sizeof(double));
+	int *energy_xs = NULL;
+	posix_memalign((void**)&energy_xs, AOCL_ALIGN, n_iso_grid*in.n_isotopes*sizeof(int));	
 	for(i = 0; i < n_iso_grid; i++){
 		energy[i] = energy_grid[i].energy;
 		int j; 
@@ -189,30 +197,32 @@ int main( int argc, char* argv[] )
 	cl_event kernel_event;
 	cl_event finish_event;
 	
-	//printf("before enqueue write buffer.\n");	
+	ocl_start_ts_sec = gettimesec();	
+	//printf("before enqueue num_nucs.\n");	
 	status = clEnqueueWriteBuffer(queue, num_nucs_buf, CL_TRUE, 0, 12*sizeof(int), num_nucs, 0, NULL, &write_events[0]);
 	checkError(status, "Failed to enqueue write buffer.\n");
-	//printf("enqueued num_nucs_buf.\n");
 	
+	//printf("before enqueue concs.\n");
 	status = clEnqueueWriteBuffer(queue, concs_buf, CL_TRUE, 0, num_dpoints*sizeof(double), *concs, 0, NULL, &write_events[1]);
         checkError(status, "Failed to enqueue write buffer.\n");
-	//printf("enqueued concs_buf.\n");
 
+	//printf("before enqueue energy_grid.\n");
 	status = clEnqueueWriteBuffer(queue, energy_grid_buf, CL_TRUE, 0, n_iso_grid*sizeof(double), energy, 0, NULL, &write_events[2]);
         checkError(status, "Failed to enqueue write buffer.\n");
 	//printf("enqueued energy_grid_buf.\n");
 	//printf("n_iso_grid = %d\n", n_iso_grid);
 	//printf("n_isotopes = %d\n", in.n_isotopes);
 	//for(i = 0; i < n_iso_grid; i++){
-	
-		status = clEnqueueWriteBuffer(queue, energy_grid_xs_buf, CL_TRUE, 0, n_iso_grid*in.n_isotopes*sizeof(int), energy_xs, 0, NULL, NULL);
+
+	//printf("before enqueue grid_xs.\n");	
+	status = clEnqueueWriteBuffer(queue, energy_grid_xs_buf, CL_TRUE, 0, n_iso_grid*in.n_isotopes*sizeof(int), energy_xs, 0, NULL, NULL);
 	//printf("i = %d\n", i);
 	//}
 	//printf("enqueued energy_grid_xs_buf.\n");
-
+	//printf("before enqueue nuclide_grid_buf.\n");
 	status = clEnqueueWriteBuffer(queue, nuclide_grids_buf, CL_TRUE, 0, n_iso_grid*sizeof(NuclideGridPoint), *nuclide_grids, 0, NULL, &write_events[3]);
         checkError(status, "Failed to enqueue write buffer.\n");
-	//printf("enqueued nuclide_grids_buf.\n");
+	//printf("before enqueue mats_buf.\n");
 	status = clEnqueueWriteBuffer(queue, mats_buf, CL_TRUE, 0, num_dpoints*sizeof(int), *mats, 0, NULL, &write_events[4]);
         checkError(status, "Failed to enqueue write buffer.\n");
 	
@@ -244,31 +254,96 @@ int main( int argc, char* argv[] )
 
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &energy_grid_xs_buf);
 	checkError(status, "Failed to set arg 4.1");
-
+	
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &nuclide_grids_buf);
 	checkError(status, "Failed to set arg 5");
 
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &mats_buf);
 	checkError(status, "Failed to set arg 6");
-
-	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &macro_xs_vector_buf);
+//printf("before vhash buf arg setting.\n");
+	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &vhash_buf);
 	checkError(status, "failed to ser arg 7");
+	//flush queue	
+	clFinish(queue);
+
+	ocl_kernel_ts_sec = gettimesec();
+	//snap_energy();
 
 	//printf("after set kernel args\n");
 	size_t global_work_size = in.lookups; 
-	//size_t local_work_size = 
+	size_t local_work_size = in.lookups/in.nthreads;
 	status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
-       		 &global_work_size, NULL, 5, write_events, &kernel_event);
+       		 &global_work_size, &local_work_size, 5, write_events, &kernel_event);
     	checkError(status, "Failed to launch kernel");
-	
-	status = clEnqueueReadBuffer(queue, macro_xs_vector_buf, CL_TRUE, 0, 5*sizeof(double), macro_xs_vector, 1, &kernel_event, &finish_event);
-	
+
+	clFinish(queue);
+	//snap_energy();
+	ocl_post_ts_sec = gettimesec();	
+
+	status = clEnqueueReadBuffer(queue, vhash_buf, CL_TRUE, 0, in.nthreads*sizeof(unsigned long), vhash, 1, &kernel_event, &finish_event);
+			
+	cl_uint t = 1;
+        clWaitForEvents(t, &finish_event);
+	ocl_end_ts_sec = gettimesec();	
+	profiled_kernel_time_ns = getStartEndTime(kernel_event);
+
 	clReleaseEvent(write_events[0]);
     	clReleaseEvent(write_events[1]);
  	clReleaseEvent(write_events[2]);
     	clReleaseEvent(write_events[3]);
 	clReleaseEvent(write_events[4]);
-	
+		
+	cleanup();
+	end_ts_sec = gettimesec();
+printf("before verification in Main.cpp \n");	
+	#ifdef VERIFICATION 
+	unsigned long * vhash_v = (unsigned long*)malloc(sizeof(unsigned long)*in.nthreads);
+	for(i = 0; i < in.nthreads; i++){
+		ulong seed = (i+1)*19+17; 
+		double p_energy = rn(&seed);
+        	int mat = pick_mat(&seed);
+        	double xs_vector[5];
+       		double macro_xs_vector[5] = {0};
+        	int p_nuc;	
+		long idx = 0;   
+        	double conc;
+		unsigned int hash = 5381;       
+        	vhash_v[i] = 0;
+		idx = grid_search( in.n_isotopes * in.n_gridpoints, p_energy,
+                           	   energy_grid);
+	//	printf("idx_v is %ld\n", idx);
+
+		for( int j = 0; j < num_nucs[mat]; j++ )
+	        {       
+        	        p_nuc = mats[mat][j];
+                	conc = concs[mat][j];
+                	calculate_micro_xs( p_energy, p_nuc, in.n_isotopes,
+                                    	    in.n_gridpoints, energy_grid,
+                                    	    nuclide_grids, idx, xs_vector );
+                	for( int k = 0; k < 5; k++ )
+                        	macro_xs_vector[k] += xs_vector[k] * conc;
+        	}
+//		printf("p_energy_v is %f, mat_v is %d\n", p_energy, mat);		
+		hash = ((hash << 5) + hash) + (int)p_energy;
+                hash = ((hash << 5) + hash) + (int)mat;
+                for(int k = 0; k < 5; k++)
+                        hash = ((hash << 5) + hash) + macro_xs_vector[k];
+                vhash_v[i] = hash % 10000;	
+	}
+//	for(i = 0; i < in.nthreads; i++){
+//		printf("i: %d, vhash is %ld, vhash_v is %ld\n", i, vhash[i], vhash_v[i]);
+//	}
+	bool pass = true;
+	for(i = 0; (i < in.nthreads) && pass; i++){
+		if(vhash[i] != vhash_v[i]){
+			pass = false;
+			printf("Veification FAIL.\n");
+			break;
+		}
+	}
+	if(pass == true)
+		printf("Verification PASS.\n");
+	#endif 
 //	memcpy(xs, macro_xs_vector, 5*sizeof(double));
 
 	// Verification hash calculation
@@ -288,12 +363,6 @@ int main( int argc, char* argv[] )
 		vhash += vhash_local;
 	#endif	
 */	
-	if( mype == 0)	
-	{	
-		printf("\n" );
-		printf("Simulation complete.\n" );
-	}
-
 	
 //	print_results( in, mype, omp_end-omp_start, nprocs, vhash );
 /*
@@ -301,7 +370,33 @@ int main( int argc, char* argv[] )
 	}
 	#endif
 */
-	cleanup();
+
+	//result print
+	if (mype == 0) {
+		printf("\n" );
+                printf("Simulation complete.\n" );
+		
+		border_print();
+                center_print("RESULTS", 79);
+                border_print();	
+		
+		printf("START_TS_SEC=%f\n", start_ts_sec);
+                printf("OCL_START_TS_SEC=%f\n", ocl_start_ts_sec);
+		printf("OCL_KERNEL_TS_SEC=%f\n", ocl_kernel_ts_sec);
+                printf("OCL_POST_TS_SEC=%f\n", ocl_post_ts_sec);
+                printf("OCL_END_TS_SEC=%f\n", ocl_end_ts_sec);
+                printf("END_TS_SEC=%f\n", end_ts_sec);
+		printf("PROFILED_KERNEL_TIME_NSEC=%lu\n", profiled_kernel_time_ns);
+
+               // printf("ARRAYINIT_SEC=%lf\n", nthrun, arrayinit_end_ts_sec - arrayinit_start_ts_sec);
+                printf("OCL_BEFORE_SEC=%lf\n", ocl_kernel_ts_sec - ocl_start_ts_sec);
+                printf("OCL_KERNEL_SEC=%lf\n", profiled_kernel_time_ns*1e-9);
+                printf("OCL_AFTER_SEC=%lf\n",  ocl_end_ts_sec - ocl_kernel_ts_sec - profiled_kernel_time_ns*1e-9);
+                printf("TOTAL_OCL_SEC=%lf\n", ocl_end_ts_sec - ocl_start_ts_sec);
+                printf("TOTAL_RUNNING_SEC=%lf\n", end_ts_sec-start_ts_sec);
+		printf("BANDWIDTH_LOOKUPS/Sec=%lf\n", bw());
+         //       report_energy();
+        }
 
 	return 0;
 }
@@ -341,7 +436,7 @@ static bool init_ocl()
 	checkError(status, "Failed to create kernel.\n");
 
 	//Give buffer 
-	macro_xs_vector_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 5*sizeof(double), NULL, &status);
+	vhash_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY, in.nthreads*sizeof(unsigned long), NULL, &status);
 	checkError(status, "Failed to create output buffer.\n");
 
        	num_nucs_buf = clCreateBuffer(context, CL_MEM_READ_ONLY, 12*sizeof(int), NULL, &status);
@@ -365,6 +460,15 @@ static bool init_ocl()
 	return true;
 }
 
+static int get_num_datapoints(int *num_nucs)
+{
+	int num_datapoints = 0;
+	for(int i = 0; i < 12; i++)
+		num_datapoints += num_nucs[i];
+
+	return num_datapoints;
+}
+
 void cleanup()
 {
 	if(kernel)
@@ -377,12 +481,91 @@ void cleanup()
                 clReleaseContext(context);
 }
 
-static int get_num_datapoints(int *num_nucs)
+long grid_search( long n, double quarry, GridPoint * A)
 {
-	int num_datapoints = 0;
-	for(int i = 0; i < 12; i++)
-		num_datapoints += num_nucs[i];
+        long lowerLimit = 0;
+        long upperLimit = n-1;
+        long examinationPoint;
+        long length = upperLimit - lowerLimit;
 
-	return num_datapoints;
+        while( length > 1 )
+        {
+                examinationPoint = lowerLimit + ( length / 2 );
+
+                if( A[examinationPoint].energy > quarry )
+                        upperLimit = examinationPoint;
+                else
+                        lowerLimit = examinationPoint;
+
+                length = upperLimit - lowerLimit;
+        }
+
+        return lowerLimit;
 }
 
+// Calculates the microscopic cross section for a given nuclide & energy
+void calculate_micro_xs(double p_energy, int nuc, long n_isotopes,
+                        long n_gridpoints,
+                        GridPoint * energy_grid,
+                        NuclideGridPoint ** nuclide_grids,
+                        int idx, double * xs_vector )
+{	
+	// Variables
+	double f;
+	NuclideGridPoint * low, * high;
+
+	// pull ptr from energy grid and check to ensure that
+	// we're not reading off the end of the nuclide's grid
+	if( energy_grid[idx].xs_ptrs[nuc] == n_gridpoints - 1 )
+		low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc] - 1];
+	else
+		low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc]];
+	
+	high = low + 1;
+	
+	// calculate the re-useable interpolation factor
+	f = (high->energy - p_energy) / (high->energy - low->energy);
+
+	// Total XS
+	xs_vector[0] = high->total_xs - f * (high->total_xs - low->total_xs);
+	
+	// Elastic XS
+	xs_vector[1] = high->elastic_xs - f * (high->elastic_xs - low->elastic_xs);
+	
+	// Absorbtion XS
+	xs_vector[2] = high->absorbtion_xs - f * (high->absorbtion_xs - low->absorbtion_xs);
+	
+	// Fission XS
+	xs_vector[3] = high->fission_xs - f * (high->fission_xs - low->fission_xs);
+	
+	// Nu Fission XS
+	xs_vector[4] = high->nu_fission_xs - f * (high->nu_fission_xs - low->nu_fission_xs);	
+}
+	
+double gettimesec(void)
+{
+	struct timeval tv;
+        gettimeofday(&tv, 0);
+        return (double)tv.tv_sec + (double)tv.tv_usec/1000.0/1000.0;
+}
+
+double bw(void) 
+{
+	return 1e9*(double)in.lookups / (double)profiled_kernel_time_ns;
+}
+/*
+void snap_energy(void) {
+	rapl_reader_snap();
+}
+
+void report_energy(void) {
+        double delta;
+        double pkg[8],pp0[8],pp1[8],mem[8];
+
+        rapl_reader_get_energy(&delta, pkg, pp0, pp1, mem);
+        printf("RAPL_CPU0_ENERGY_J=%lf # NOTE: RAPL conditionally works\n",
+                       pkg[0] + mem[0]);
+        printf("RAPL_CPU1_ENERGY_J=%lf\n",
+                       pkg[1] + mem[1]);
+        printf("RAPL_CPU_ENERGY_DELTA_SEC=%lf\n", delta);
+}*/

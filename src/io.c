@@ -61,20 +61,12 @@ void print_results( Inputs in, int mype, double runtime, int nprocs,
 
 		// Print the results
 		printf("Threads:     %d\n", in.nthreads);
-		#ifdef MPI
-		printf("MPI ranks:   %d\n", nprocs);
-		#endif
-		#ifdef MPI
-		printf("Total Lookups/s:            ");
-		fancy_int(total_lookups);
-		printf("Avg Lookups/s per MPI rank: ");
-		fancy_int(total_lookups / nprocs);
-		#else
+
 		printf("Runtime:     %.3lf seconds\n", runtime);
 		printf("Lookups:     "); fancy_int(in.lookups);
 		printf("Lookups/s:   ");
 		fancy_int(lookups_per_sec);
-		#endif
+		
 		#ifdef VERIFICATION
 		printf("Verification checksum: %llu\n", vhash);
 		#endif
@@ -168,8 +160,8 @@ Inputs read_CLI( int argc, char * argv[] )
 	Inputs input;
 	
 	// defaults to max threads on the system	
-	input.nthreads = omp_get_num_procs();
-	
+//	input.nthreads = omp_get_num_procs();
+	input.nthreads = 2;	
 	// defaults to 355 (corresponding to H-M Large benchmark)
 	input.n_isotopes = 355;
 	
