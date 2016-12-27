@@ -87,8 +87,6 @@ long grid_search( long n, double quarry, __global double * A)
 
 double rn(unsigned long * seed)
 {
-        //for verification: static unsigned long seed = 1337;
-        
 	double ret;
         unsigned long n1;
         unsigned long a = 16807;
@@ -124,13 +122,6 @@ int pick_mat( unsigned long * seed )
 	dist[10] = 0.025;	// top of fuel assemblies
 	dist[11] = 0.013;	// bottom of fuel assemblies
 	
-	//double roll = (double) rand() / (double) RAND_MAX;
-//	#ifdef VERIFICATION
-//	double roll = rn_v();
-//	#else
-//	double roll = rn(seed);
-//	#endif
-
 	double roll = rn(seed);
 	// makes a pick based on the distro
 	for( int i = 0; i < 12; i++ )
@@ -159,26 +150,18 @@ __kernel void calculate_macro_xs(
                          __global ulong * restrict vhash ){
 
 	int thread = get_group_id(0);
-	ulong seed = (thread+1)*19+17;	
-	// printf("seed is %ld \n", seed);	
+	int local_id = get_local_id(0);
+ 	ulong seed = (thread+1)*(local_id+1)*19+17;	
+		
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
+
         double xs_vector[5];
 	double macro_xs_vector[5] = {0};
 	int p_nuc; // the nuclide we are looking up
 	long idx = 0;	
 	double conc; // the concentration of the nuclide in the material
 	
-	//for verification
-	unsigned int hash = 5381;	
-	vhash[thread] = 0;
-/*
-	// cleans out macro_xs_vector
-	#pragma unroll 
-	for( int k = 0; k < 5; k++ )
-		macro_xs_vector[k] = 0;
-*/
-
 	// binary search for energy on unionized energy grid (UEG)
 	idx = grid_search( n_isotopes * n_gridpoints, p_energy,
 	                   energy_grid);	
@@ -196,16 +179,10 @@ __kernel void calculate_macro_xs(
 	// micro XS is multiplied by the concentration of that nuclide
 	// in the material, and added to the total macro XS array.
 
-	//printf("before calculate_micro_xs for loop. index = %d\n", index);
-	//printf("num_nucs = %d\n", num_nucs[mat]);
-	#pragma unroll 2
+	#pragma unroll 34
 	for( int j = 0; j < num_nucs[mat]; j++ )
-	{
-                //printf("j = %d\n", j);
+	{ 
 		int index_j = index + j;
-		//printf("index_j = %d\n", index_j);
-         	//printf("p_nuc = %d\n", mats[index_j]);
-	        //printf("conc = %f\n", concs[index_j]);
 		p_nuc = mats[index_j];
                 conc = concs[index_j];
 		calculate_micro_xs( p_energy, p_nuc, n_isotopes,
@@ -218,8 +195,11 @@ __kernel void calculate_macro_xs(
 
 	if(verification == 1){
 //		printf("p_energy is %f, mat is %d\n", p_energy, mat);
+		unsigned int hash = 5381;	
+		vhash[thread] = 0;
 		hash = ((hash << 5) + hash) + (int)p_energy;
 		hash = ((hash << 5) + hash) + (int)mat;
+		#pragma unroll
 		for(int k = 0; k < 5; k++)
 			hash = ((hash << 5) + hash) + macro_xs_vector[k];
 		vhash[thread] = hash % 10000;

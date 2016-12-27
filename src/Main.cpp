@@ -272,6 +272,7 @@ int main( int argc, char* argv[] )
 	//printf("after set kernel args\n");
 	size_t global_work_size = in.lookups; 
 	size_t local_work_size = in.lookups/in.nthreads;
+//	size_t local_work_size = 1;
 	status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
        		 &global_work_size, &local_work_size, 5, write_events, &kernel_event);
     	checkError(status, "Failed to launch kernel");
@@ -298,8 +299,8 @@ int main( int argc, char* argv[] )
 printf("before verification in Main.cpp \n");	
 	#ifdef VERIFICATION 
 	unsigned long * vhash_v = (unsigned long*)malloc(sizeof(unsigned long)*in.nthreads);
-	for(i = 0; i < in.nthreads; i++){
-		ulong seed = (i+1)*19+17; 
+	for(i = 0; i < (global_work_size/local_work_size); i++){
+		ulong seed = (i+1)*(local_work_size)*19+17; 
 		double p_energy = rn(&seed);
         	int mat = pick_mat(&seed);
         	double xs_vector[5];
