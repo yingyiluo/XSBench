@@ -164,8 +164,7 @@ __kernel void calculate_macro_xs(
 	
 	// binary search for energy on unionized energy grid (UEG)
 	idx = grid_search( n_isotopes * n_gridpoints, p_energy,
-	                   energy_grid);	
-	//printf("grid search idx = %ld\n", idx);	
+	                   energy_grid);		
 
         //calculate the index for mats and concs from 2d array
 	int index = 0;
