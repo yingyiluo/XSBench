@@ -9,7 +9,7 @@ PROFILE     = no
 MPI         = no
 PAPI        = no
 VEC_INFO    = no
-VERIFY      = yes
+VERIFY      = no
 BENCHMARK   = no
 BINARY_DUMP = no
 BINARY_READ = no
@@ -30,7 +30,7 @@ endif
 COMMON_FILES = ../common/src/AOCL_Utils.cpp
 AOCL_COMPILE_CONFIG=$(shell aocl compile-config) -I../common/inc
 AOCL_LINK_CONFIG=$(shell aocl link-config) -lnalla_pcie_mmd
-RAPL_H = -I../etrace 
+RAPL_H = -I/etrace 
 LDFLAGS_RAPL = -Letrace -lrapl_reader
 
 source = \
@@ -38,7 +38,10 @@ Main.cpp \
 io.c \
 GridInit.c \
 XSutils.c \
-Materials.c
+Materials.c \
+etrace/rapl_reader.c \
+etrace/parse_cpuinfo_pkg_model.c  
+
 
 obj = Main.o io.o GridInit.o XSutils.o Materials.o 
 #obj = $(source:.c=.o .cpp=.o)
@@ -140,7 +143,7 @@ endif
 #	$(CC) $(CFLAGS) -c $< -o $@ 
 
 all:
-	g++ $(CFLAGS) $(source) $(COMMON_FILES) -o $(program) $(RAPL_H) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG)
+	g++ $(CFLAGS) $(source) $(COMMON_FILES) -o $(program) $(RAPL_H) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG) $(LDFLAGS_RAPL)
 
 clean:
 	rm -rf $(program) $(obj)

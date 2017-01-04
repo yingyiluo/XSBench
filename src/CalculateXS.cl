@@ -10,26 +10,19 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 	
 	// Variables
 	double f;
-	//NuclideGridPoint * low, * high;
 	NuclideGridPoint low, high;
 	// pull ptr from energy grid and check to ensure that
 	// we're not reading off the end of the nuclide's grid
         long index = nuc * n_gridpoints;
        	long index_xs = idx*n_isotopes + nuc;
-//	printf("grid_xs = %d\n", energy_grid_xs[index_xs]);
 
 	if(energy_grid_xs[index_xs] == n_gridpoints - 1 ){
 		low = nuclide_grids[index + energy_grid_xs[index_xs] - 1];
 	        high = nuclide_grids[index + energy_grid_xs[index_xs]];
-                //low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc] - 1];
 	}else{
 		low = nuclide_grids[index + energy_grid_xs[index_xs]];
-                high = nuclide_grids[index + energy_grid_xs[index_xs] + 1];
-		//low = &nuclide_grids[nuc][energy_grid[idx].xs_ptrs[nuc]];
+                high = nuclide_grids[index + energy_grid_xs[index_xs] + 1];	
 	}
-//	printf("nuclide_grid high total xs is %f\n", high.total_xs);	
-	//high = low + 1;
-	
 	// calculate the re-useable interpolation factor
 	f = (high.energy - p_energy) / (high.energy - low.energy);
 
@@ -150,9 +143,11 @@ __kernel void calculate_macro_xs(
                          __global ulong * restrict vhash ){
 
 	int thread = get_group_id(0);
-	int local_id = get_local_id(0);
- 	ulong seed = (thread+1)*(local_id+1)*19+17;	
-		
+//	int local_id = get_local_id(0);
+ //	ulong seed = (thread+1)*(local_id+1)*19+17;	
+	int global_id = get_global_id(0);
+	ulong seed = (global_id+1)*19+17;
+			
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
 
@@ -178,7 +173,7 @@ __kernel void calculate_macro_xs(
 	// micro XS is multiplied by the concentration of that nuclide
 	// in the material, and added to the total macro XS array.
 
-	#pragma unroll 34
+	#pragma unroll 5
 	for( int j = 0; j < num_nucs[mat]; j++ )
 	{ 
 		int index_j = index + j;
@@ -198,7 +193,6 @@ __kernel void calculate_macro_xs(
 		vhash[thread] = 0;
 		hash = ((hash << 5) + hash) + (int)p_energy;
 		hash = ((hash << 5) + hash) + (int)mat;
-		#pragma unroll
 		for(int k = 0; k < 5; k++)
 			hash = ((hash << 5) + hash) + macro_xs_vector[k];
 		vhash[thread] = hash % 10000;

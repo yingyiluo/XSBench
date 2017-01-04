@@ -4,7 +4,7 @@
 #include "CL/opencl.h"
 #include "../common/inc/AOCL_Utils.h"
 
-#include "../etrace/rapl_reader.h"
+#include "etrace/rapl_reader.h"
 
 using namespace aocl_utils; 
 
@@ -38,13 +38,13 @@ cl_ulong profiled_kernel_time_ns;
 static bool init_ocl();
 static int get_num_datapoints(int *);
 void cleanup();
-double gettimesec();
+extern double gettimesec();
 double bw();
 long grid_search(long, double, GridPoint *);
 void calculate_micro_xs( double, int, long, long, GridPoint*, NuclideGridPoint **, int, double * );	
 
-//void snap_energy();
-//void report_energy();
+void snap_energy();
+void report_energy();
 
 int main( int argc, char* argv[] )
 {
@@ -267,7 +267,7 @@ int main( int argc, char* argv[] )
 	clFinish(queue);
 
 	ocl_kernel_ts_sec = gettimesec();
-	//snap_energy();
+	snap_energy();
 
 	//printf("after set kernel args\n");
 	size_t global_work_size = in.lookups; 
@@ -278,7 +278,7 @@ int main( int argc, char* argv[] )
     	checkError(status, "Failed to launch kernel");
 
 	clFinish(queue);
-	//snap_energy();
+	snap_energy();
 	ocl_post_ts_sec = gettimesec();	
 
 	status = clEnqueueReadBuffer(queue, vhash_buf, CL_TRUE, 0, in.nthreads*sizeof(unsigned long), vhash, 1, &kernel_event, &finish_event);
@@ -296,7 +296,7 @@ int main( int argc, char* argv[] )
 		
 	cleanup();
 	end_ts_sec = gettimesec();
-printf("before verification in Main.cpp \n");	
+
 	#ifdef VERIFICATION 
 	unsigned long * vhash_v = (unsigned long*)malloc(sizeof(unsigned long)*in.nthreads);
 	for(i = 0; i < (global_work_size/local_work_size); i++){
@@ -324,7 +324,7 @@ printf("before verification in Main.cpp \n");
                 	for( int k = 0; k < 5; k++ )
                         	macro_xs_vector[k] += xs_vector[k] * conc;
         	}
-//		printf("p_energy_v is %f, mat_v is %d\n", p_energy, mat);		
+		//printf("p_energy_v is %f, mat_v is %d\n", p_energy, mat);		
 		hash = ((hash << 5) + hash) + (int)p_energy;
                 hash = ((hash << 5) + hash) + (int)mat;
                 for(int k = 0; k < 5; k++)
@@ -337,6 +337,7 @@ printf("before verification in Main.cpp \n");
 	bool pass = true;
 	for(i = 0; (i < in.nthreads) && pass; i++){
 		if(vhash[i] != vhash_v[i]){
+			printf("i: %d, vhash is %ld, vhash_v is %ld\n", i, vhash[i], vhash_v[i]);
 			pass = false;
 			printf("Veification FAIL.\n");
 			break;
@@ -396,7 +397,7 @@ printf("before verification in Main.cpp \n");
                 printf("TOTAL_OCL_SEC=%lf\n", ocl_end_ts_sec - ocl_start_ts_sec);
                 printf("TOTAL_RUNNING_SEC=%lf\n", end_ts_sec-start_ts_sec);
 		printf("BANDWIDTH_LOOKUPS/Sec=%lf\n", bw());
-         //       report_energy();
+                report_energy();
         }
 
 	return 0;
@@ -542,19 +543,19 @@ void calculate_micro_xs(double p_energy, int nuc, long n_isotopes,
 	// Nu Fission XS
 	xs_vector[4] = high->nu_fission_xs - f * (high->nu_fission_xs - low->nu_fission_xs);	
 }
-	
+/*	
 double gettimesec(void)
 {
 	struct timeval tv;
         gettimeofday(&tv, 0);
         return (double)tv.tv_sec + (double)tv.tv_usec/1000.0/1000.0;
 }
-
+*/
 double bw(void) 
 {
 	return 1e9*(double)in.lookups / (double)profiled_kernel_time_ns;
 }
-/*
+
 void snap_energy(void) {
 	rapl_reader_snap();
 }
@@ -569,4 +570,4 @@ void report_energy(void) {
         printf("RAPL_CPU1_ENERGY_J=%lf\n",
                        pkg[1] + mem[1]);
         printf("RAPL_CPU_ENERGY_DELTA_SEC=%lf\n", delta);
-}*/
+}
