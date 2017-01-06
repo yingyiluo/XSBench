@@ -427,6 +427,10 @@ static bool init_ocl()
 	context = clCreateContext(NULL, 1, &device, NULL, NULL, &status);
 	checkError(status, "Failed to create context.\n");
 
+	cl_ulong buffer;
+    	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(buffer), &buffer, NULL);
+    	printf("CL_DEVICE_MAX_WORK_GROUP_SIZE = %llu \n", (unsigned long long)buffer);
+	
 	queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &status);
 	checkError(status, "Failed to create command queue.\n");
 	
