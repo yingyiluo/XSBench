@@ -20,16 +20,11 @@ BINARY_READ = no
 
 program = XSBench
 
-ifeq ($(wildcard $(ALTERAOCLSDKROOT)),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation)
-endif
-ifeq ($(wildcard $(ALTERAOCLSDKROOT)/host/include/CL/opencl.h),)
-$(error Set ALTERAOCLSDKROOT to the root directory of the Altera SDK for OpenCL software installation.)
-endif
+INTELDIR=/opt/intel/opencl-1.2-sdk-6.2.0.1760/
 
 COMMON_FILES = ../common/src/AOCL_Utils.cpp
-AOCL_COMPILE_CONFIG=$(shell aocl compile-config) -I../common/inc
-AOCL_LINK_CONFIG=$(shell aocl link-config) -lnalla_pcie_mmd
+CFLAGS := -I$(INTELDIR)/include -I. -I../common/inc -DUSE_INTELOPENCL
+LDFLAGS_AOC = -L$(INTELDIR)/lib64 -lOpenCL  -lm -lrt
 RAPL_H = -I/etrace 
 LDFLAGS_RAPL = -Letrace -lrapl_reader
 
@@ -50,7 +45,7 @@ etrace/parse_cpuinfo_pkg_model.c
 #===============================================================================
 
 # Standard Flags
-#CFLAGS := -std=gnu99
+CFLAGS += -std=gnu++0x
 
 # Linker Flags
 LDFLAGS = -lm
@@ -143,7 +138,7 @@ endif
 #	$(CC) $(CFLAGS) -c $< -o $@ 
 
 all:
-	g++ $(CFLAGS) $(source) $(COMMON_FILES) -o $(program) $(RAPL_H) $(LDFLAGS) $(AOCL_COMPILE_CONFIG) $(AOCL_LINK_CONFIG) $(LDFLAGS_RAPL)
+	g++ $(CFLAGS) $(source) $(COMMON_FILES) -o $(program) $(RAPL_H) $(LDFLAGS) $(LDFLAGS_AOC) $(LDFLAGS_RAPL)
 
 clean:
 	rm -rf $(program) $(obj)

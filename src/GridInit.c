@@ -22,7 +22,7 @@ void generate_grids( NuclideGridPoint ** nuclide_grids,
 			nuclide_grids[i][j].nu_fission_xs=((double)rand()/(double)RAND_MAX);
 		}
 }
-
+/*
 // Verification version of this function (tighter control over RNG)
 void generate_grids_v( NuclideGridPoint ** nuclide_grids,
                      long n_isotopes, long n_gridpoints ) {
@@ -37,7 +37,7 @@ void generate_grids_v( NuclideGridPoint ** nuclide_grids,
 			nuclide_grids[i][j].nu_fission_xs= rn_v();
 		}
 }
-
+*/
 // Sorts the nuclide grids by energy (lowest -> highest)
 void sort_nuclide_grids( NuclideGridPoint ** nuclide_grids, long n_isotopes,
                          long n_gridpoints )

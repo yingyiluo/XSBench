@@ -161,7 +161,7 @@ Inputs read_CLI( int argc, char * argv[] )
 	
 	// defaults to max threads on the system	
 //	input.nthreads = omp_get_num_procs();
-	input.nthreads = 2;	
+	input.nthreads = 32;	
 	// defaults to 355 (corresponding to H-M Large benchmark)
 	input.n_isotopes = 355;
 	

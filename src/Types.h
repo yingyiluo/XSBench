@@ -9,6 +9,8 @@ typedef struct{
 	double absorbtion_xs;
 	double fission_xs;
 	double nu_fission_xs;
+//	double dummy1;
+//	double dummy2;
 } NuclideGridPoint;
 
 typedef struct{

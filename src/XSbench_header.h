@@ -64,8 +64,6 @@ int NGP_compare( const void * a, const void * b );
 
 void generate_grids( NuclideGridPoint ** nuclide_grids,
                      long n_isotopes, long n_gridpoints );
-void generate_grids_v( NuclideGridPoint ** nuclide_grids,
-                     long n_isotopes, long n_gridpoints );
 
 void sort_nuclide_grids( NuclideGridPoint ** nuclide_grids, long n_isotopes,
                          long n_gridpoints );
@@ -97,7 +95,7 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 int * load_num_nucs(long n_isotopes);
 int ** load_mats( int * num_nucs, long n_isotopes );
 double ** load_concs( int * num_nucs );
-double ** load_concs_v( int * num_nucs );
+//double ** load_concs_v( int * num_nucs );
 int pick_mat(unsigned long * seed);
 double rn(unsigned long * seed);
 int rn_int(unsigned long * seed);
@@ -108,7 +106,7 @@ void do_loads( int nuc, NuclideGridPoint ** restrict,
 		       long n_gridpoints );	
 Inputs read_CLI( int argc, char * argv[] );
 void print_CLI_error(void);
-double rn_v(void);
+//double rn_v(void);
 double round_double( double input );
 unsigned int hash(unsigned char *str, int nbins);
 size_t estimate_mem_usage( Inputs in );

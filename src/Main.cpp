@@ -6,6 +6,11 @@
 
 #include "etrace/rapl_reader.h"
 
+#if defined(USE_INTELOPENCL)
+#include <stdio.h>
+#include <stdlib.h>
+#endif
+
 using namespace aocl_utils; 
 
 #ifdef MPI
@@ -81,8 +86,6 @@ int main( int argc, char* argv[] )
 	//Inputs in = read_CLI( argc, argv );
 	in = read_CLI( argc, argv );
  	n_iso_grid = in.n_isotopes*in.n_gridpoints;
-	// Set number of OpenMP Threads
-//	omp_set_num_threads(in.nthreads); 
 
 	// Print-out of Input Summary
 	if( mype == 0 )
@@ -99,11 +102,7 @@ int main( int argc, char* argv[] )
 	
 	NuclideGridPoint ** nuclide_grids = gpmatrix(in.n_isotopes,in.n_gridpoints);
 	
-	//#ifdef VERIFICATION
-	//generate_grids_v( nuclide_grids, in.n_isotopes, in.n_gridpoints );	
-	//#else
 	generate_grids( nuclide_grids, in.n_isotopes, in.n_gridpoints );	
-	//#endif
 	
 	// Sort grids by energy
 	#ifndef BINARY_READ
@@ -408,7 +407,12 @@ static bool init_ocl()
 	cl_int status;
         if(!setCwdToExeDir())
 		return false;
-	platform = findPlatform("Altera");
+
+#if defined(USE_INTELOPENCL)
+        platform = findPlatform("Intel");
+#else
+        platform = findPlatform("Altera");
+#endif	
 	if(platform == NULL)
 	{
 		printf("ERROR: unable to find Altera platform.\n");
@@ -425,17 +429,68 @@ static bool init_ocl()
 
 	queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &status);
 	checkError(status, "Failed to create command queue.\n");
+	
+#if defined(USE_INTELOPENCL)
+	// build ocl kernel directly
+	char *kernel_text;
+	size_t text_size;
+	FILE *fp;
+	char fn[1024];
+	snprintf(fn, 1024, "ccfmaCalculateXS.cl");
 
+	fp = fopen(fn, "r");
+	if (!fp) {
+		printf("failed to open: %s\n", fn);
+		exit(1);
+	}
+
+	fseek(fp, 0, SEEK_END);
+        text_size = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        kernel_text = (char *)malloc(text_size+1);
+	if (!kernel_text) {
+		printf("%s(%d)\n", __FILE__, __LINE__);
+		exit(1);
+	}
+	if (fread(kernel_text, text_size, 1, fp) == 0) {
+		printf("%s(%d)\n", __FILE__, __LINE__);
+		exit(1);
+	}
+	fclose(fp);
+	kernel_text[text_size] = 0;
+	//printf("%s\n", kernel_text);
+
+	cl_program program = clCreateProgramWithSource(context, 1, (const char**)&kernel_text, 0, &status);
+	status = clBuildProgram(program, 1, &device, "", 0, 0);
+	if (status != CL_SUCCESS) {
+		size_t sz = 0, retsz;
+		clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &sz);
+
+		char *log = (char*)malloc(sz+1);
+		if (log) {
+			clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sz, log, &retsz);
+			log[retsz] = 0;
+			printf(log);
+		}
+
+		exit(1);
+	}
+
+#else
 	std::string binary_file = getBoardBinaryFile("CalculateXS", device);
 	printf("Using AOCX: %s\n", binary_file.c_str());
 	program = createProgramFromBinary(context, binary_file.c_str(), &device, 1);
 
   	status = clBuildProgram(program, 0, NULL, "", NULL, NULL);
 	checkError(status, "Failed to build program.\n");
+#endif
 	
 	const char *kernel_name = "calculate_macro_xs";
 	kernel = clCreateKernel(program, kernel_name, &status);
 	checkError(status, "Failed to create kernel.\n");
+
+	rapl_reader_init();
+	rapl_reader_snap();
 
 	//Give buffer 
 	vhash_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY, in.nthreads*sizeof(unsigned long), NULL, &status);

@@ -86,7 +86,7 @@ double rn(unsigned long * seed)
 }
 
 
-
+/*
 // RNG Used for Verification Option.
 // This one has a static seed (must be set manually in source).
 // Park & Miller Multiplicative Conguential Algorithm
@@ -103,7 +103,7 @@ double rn_v(void)
 	ret = (double) n1 / m;
 	return ret;
 }
-
+*/
 unsigned int hash(unsigned char *str, int nbins)
 {
 	unsigned int hash = 5381;

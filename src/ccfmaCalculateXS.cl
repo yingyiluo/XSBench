@@ -3,18 +3,19 @@
 // Calculates the microscopic cross section for a given nuclide & energy
 void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
                            long n_gridpoints, 
-			   __global int * restrict energy_grid_xs,
+			   __constant int * restrict energy_grid_xs,
                            __global NuclideGridPoint * restrict nuclide_grids,
                            int idx, 
                            double * restrict xs_vector ){
 	
 	// Variables
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable	
 	double f;
 	NuclideGridPoint low, high;
 	// pull ptr from energy grid and check to ensure that
 	// we're not reading off the end of the nuclide's grid
         long index = nuc * n_gridpoints;
-       	long index_xs = idx*n_isotopes + nuc;
+       	long index_xs = idx * n_isotopes + nuc;
 
 	if(energy_grid_xs[index_xs] == n_gridpoints - 1 ){
 		low = nuclide_grids[index + energy_grid_xs[index_xs] - 1];
@@ -27,36 +28,25 @@ void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
 	f = (high.energy - p_energy) / (high.energy - low.energy);
 
 	// Total XS
-	xs_vector[0] = high.total_xs - f * (high.total_xs - low.total_xs);
+	xs_vector[0] = mad( -f, (high.total_xs - low.total_xs), high.total_xs );
 	
 	// Elastic XS
-	xs_vector[1] = high.elastic_xs - f * (high.elastic_xs - low.elastic_xs);
+	xs_vector[1] = mad( -f, (high.elastic_xs - low.elastic_xs), high.elastic_xs );
 	
 	// Absorbtion XS
-	xs_vector[2] = high.absorbtion_xs - f * (high.absorbtion_xs - low.absorbtion_xs);
+	xs_vector[2] = mad( -f, (high.absorbtion_xs - low.absorbtion_xs), high.absorbtion_xs );
 	
 	// Fission XS
-	xs_vector[3] = high.fission_xs - f * (high.fission_xs - low.fission_xs);
+	xs_vector[3] = mad( -f, (high.fission_xs - low.fission_xs), high.fission_xs );
 	
 	// Nu Fission XS
-	xs_vector[4] = high.nu_fission_xs - f * (high.nu_fission_xs - low.nu_fission_xs);
-	
-	//test
-	/*	
-	if( omp_get_thread_num() == 0 )
-	{
-		printf("Lookup: Energy = %lf, nuc = %d\n", p_energy, nuc);
-		printf("e_h = %lf e_l = %lf\n", high->energy , low->energy);
-		printf("xs_h = %lf xs_l = %lf\n", high->elastic_xs, low->elastic_xs);
-		printf("total_xs = %lf\n\n", xs_vector[1]);
-	}
-	*/
+	xs_vector[4] = mad( -f, (high.nu_fission_xs - low.nu_fission_xs), high.nu_fission_xs );
 	
 }
 
 // (fixed) binary search for energy on unionized energy grid
 // returns lower index
-long grid_search( long n, double quarry, __global double * A)
+long grid_search( long n, double quarry, __constant double * A)
 {
 	long lowerLimit = 0;
 	long upperLimit = n-1;
@@ -65,8 +55,9 @@ long grid_search( long n, double quarry, __global double * A)
 
 	while( length > 1 )
 	{
-		examinationPoint = lowerLimit + ( length / 2 );
-		
+		//examinationPoint = lowerLimit + ( length / 2 );
+		examinationPoint = lowerLimit + (length >> 1);	
+	
 		if( A[examinationPoint] > quarry )
 			upperLimit = examinationPoint;
 		else
@@ -134,27 +125,32 @@ __kernel void calculate_macro_xs(
 			 const uint verification,  
 		         const long n_isotopes, 
 		 	 const long n_gridpoints,
-                         __global int * restrict num_nucs,
+                         __constant int * restrict num_nucs,
                          __global double * restrict concs,
-                         __global double * restrict energy_grid,
-                         __global int * restrict energy_grid_xs,
+                         __constant double * restrict energy_grid,
+                         __constant int * restrict energy_grid_xs,
 			 __global NuclideGridPoint * restrict nuclide_grids,
                          __global int * restrict mats,
                          __global ulong * restrict vhash ){
 
 	int thread = get_group_id(0);
-	int local_id = get_local_id(0);
- 	ulong seed = (thread+1)*(local_id+1)*19+17;	
-//	int global_id = get_global_id(0);
-//	ulong seed = (global_id+1)*19+17;
-			
+	//int local_id = get_local_id(0);
+ 	//ulong seed = (thread+1)*(local_id+1)*19+17;	
+	int global_id = get_global_id(0);
+	ulong seed = (global_id+1)*19+17;
+
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable		
 	double p_energy = rn(&seed);
 	int mat = pick_mat(&seed);
-
-        double xs_vector[5];
+	
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable	
+	double xs_vector[5];
+ 
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 	double macro_xs_vector[5] = {0};
 	int p_nuc; // the nuclide we are looking up
 	long idx = 0;	
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 	double conc; // the concentration of the nuclide in the material
 	
 	// binary search for energy on unionized energy grid (UEG)
@@ -173,7 +169,7 @@ __kernel void calculate_macro_xs(
 	// micro XS is multiplied by the concentration of that nuclide
 	// in the material, and added to the total macro XS array.
 
-	#pragma unroll 5
+//	#pragma unroll 4
 	for( int j = 0; j < num_nucs[mat]; j++ )
 	{ 
 		int index_j = index + j;
@@ -181,19 +177,15 @@ __kernel void calculate_macro_xs(
                 conc = concs[index_j];
 		calculate_micro_xs( p_energy, p_nuc, n_isotopes,
 		                    n_gridpoints, energy_grid_xs,
-		                    nuclide_grids, idx, xs_vector );
-		printf("p_nuc is %d, conc is %f\n", p_nuc, conc);
+		                    nuclide_grids, idx, xs_vector );	
 		#pragma unroll 
 		for( int k = 0; k < 5; k++ ){
-			printf("xs_vector[%d] is %f\n", k, xs_vector[k]);
-			macro_xs_vector[k] += xs_vector[k] * conc;
-			printf("macro_xs_vector[%d] is %f\n", k, macro_xs_vector[k]);
+ 			macro_xs_vector[k] = mad( xs_vector[k], conc, macro_xs_vector[k] );
 		}
 	}
 
-
 	if(verification == 1){
-		printf("idx is %ld, p_energy is %f, mat is %d\n", idx, p_energy, mat);
+	//	printf("idx is %ld, p_energy is %f, mat is %d\n", idx, p_energy, mat);
 		unsigned int hash = 5381;	
 		vhash[thread] = 0;
 		hash = ((hash << 5) + hash) + (int)p_energy;
@@ -201,14 +193,6 @@ __kernel void calculate_macro_xs(
 		for(int k = 0; k < 5; k++)
 			hash = ((hash << 5) + hash) + macro_xs_vector[k];
 		vhash[thread] = hash % 10000;
-	}
-	
-
-	//test
-/*	
-	for( int k = 0; k < 5; k++ )
-		printf("thread: %d, seed: %ld, Energy: %lf, Material: %d, XSVector[%d]: %lf\n",
-		       thread, seed, p_energy, mat, k, macro_xs_vector[k]);
-*/	
+	}	
 }
 
