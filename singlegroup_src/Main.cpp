@@ -22,6 +22,7 @@ Inputs in;
 int num_dpoints = 0;
 int n_iso_grid;
 //OPENCL config
+unsigned int perthread_lookups;
 cl_platform_id platform = NULL;
 cl_device_id device = NULL;
 cl_context context = NULL;
@@ -241,6 +242,10 @@ int main( int argc, char* argv[] )
 
 	status = clSetKernelArg(kernel, arg++, sizeof(long), &in.n_gridpoints);
 	checkError(status, "Failed to set arg 1");
+	
+	perthread_lookups = in.lookups/in.nthreads;
+	status = clSetKernelArg(kernel, arg++, sizeof(unsigned int), &perthread_lookups);
+	checkError(status, "Failed to set arg 1.1");
 
 	status = clSetKernelArg(kernel, arg++, sizeof(cl_mem), &num_nucs_buf);
 	checkError(status, "Failed to set kernel arg 2");
@@ -269,11 +274,11 @@ int main( int argc, char* argv[] )
 	snap_energy();
 
 	//printf("after set kernel args\n");
-	size_t global_work_size = in.lookups; 
-	size_t local_work_size = in.lookups/in.nthreads;
+	size_t global_work_size = in.nthreads; 
+//	size_t local_work_size = in.lookups/in.nthreads;
 //	size_t local_work_size = 1;
 	status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
-       		 &global_work_size, &local_work_size, 5, write_events, &kernel_event);
+       		 &global_work_size, NULL, 5, write_events, &kernel_event);
     	checkError(status, "Failed to launch kernel");
 
 	clFinish(queue);
@@ -298,39 +303,47 @@ int main( int argc, char* argv[] )
 
 	#ifdef VERIFICATION 
 	unsigned long * vhash_v = (unsigned long*)malloc(sizeof(unsigned long)*in.nthreads);
-	for(i = 0; i < (global_work_size/local_work_size); i++){
-		ulong seed = (i+1)*(local_work_size)*19+17; 
-		double p_energy = rn(&seed);
-        	int mat = pick_mat(&seed);
-        	double xs_vector[5];
+	for(i = 0; i < in.nthreads; i++)
+	{
+		ulong seed = (i+1)*19+17;
+		double p_energy;
+        	int mat;
        		double macro_xs_vector[5] = {0};
-        	int p_nuc;	
-		long idx = 0;   
-        	double conc;
 		unsigned int hash = 5381;       
         	vhash_v[i] = 0;
-		idx = grid_search( in.n_isotopes * in.n_gridpoints, p_energy,
-                           	   energy_grid);
-	//	printf("idx_v is %ld\n", idx);
 
-		for( int j = 0; j < num_nucs[mat]; j++ )
-	        {       
-        	        p_nuc = mats[mat][j];
-                	conc = concs[mat][j];
-        //		printf("Main: p_nuc is %d, conc is %f\n", p_nuc, conc );
-	        	calculate_micro_xs( p_energy, p_nuc, in.n_isotopes,
-                                    	    in.n_gridpoints, energy_grid,
-                                    	    nuclide_grids, idx, xs_vector );
-                	for( int k = 0; k < 5; k++ )
-                        	macro_xs_vector[k] += xs_vector[k] * conc;
-        	}
-	//	printf("p_energy_v is %f, mat_v is %d\n", p_energy, mat);		
+		for(int n = 0; n < perthread_lookups; n++)
+ 		{
+			p_energy = rn(&seed);
+        		mat = pick_mat(&seed);
+        		double xs_vector[5];	
+        		int p_nuc;	
+			long idx = 0;   
+        		double conc;
+			idx = grid_search( in.n_isotopes * in.n_gridpoints, p_energy,
+                        	   	   energy_grid);
+		//	printf("idx_v is %ld\n", idx);
+
+			for( int j = 0; j < num_nucs[mat]; j++ )
+	       		{       
+        	        	p_nuc = mats[mat][j];
+                		conc = concs[mat][j];
+        //			printf("Main: p_nuc is %d, conc is %f\n", p_nuc, conc );
+	        		calculate_micro_xs( p_energy, p_nuc, in.n_isotopes,
+                                	    	    in.n_gridpoints, energy_grid,
+                                    		    nuclide_grids, idx, xs_vector );
+                		for( int k = 0; k < 5; k++ )
+                        		macro_xs_vector[k] += xs_vector[k] * conc;
+        		}
+		}
+		//	printf("p_energy_v is %f, mat_v is %d\n", p_energy, mat);		
 		hash = ((hash << 5) + hash) + (int)p_energy;
                 hash = ((hash << 5) + hash) + (int)mat;
                 for(int k = 0; k < 5; k++)
-                        hash = ((hash << 5) + hash) + macro_xs_vector[k];
+                       	hash = ((hash << 5) + hash) + macro_xs_vector[k];
                 vhash_v[i] = hash % 10000;	
 	}
+	
 //	for(i = 0; i < in.nthreads; i++){
 //		printf("i: %d, vhash is %ld, vhash_v is %ld\n", i, vhash[i], vhash_v[i]);
 //	}
@@ -343,7 +356,7 @@ int main( int argc, char* argv[] )
 			break;
 		}
 	}
-	if(pass == true)
+	if(pass == true)	
 		printf("Verification PASS.\n");
 	#endif 
 //	memcpy(xs, macro_xs_vector, 5*sizeof(double));

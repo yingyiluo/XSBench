@@ -3,7 +3,7 @@
 // Calculates the microscopic cross section for a given nuclide & energy
 void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
                            long n_gridpoints, 
-			   __constant int * restrict energy_grid_xs,
+			   __global int * restrict energy_grid_xs,
                            __global NuclideGridPoint * restrict nuclide_grids,
                            int idx, 
                            double * restrict xs_vector ){
@@ -126,11 +126,11 @@ __kernel void calculate_macro_xs(
 		         const long n_isotopes, 
 		 	 const long n_gridpoints,
                          __constant int * restrict num_nucs,
-                         __global double * restrict concs,
+                         __constant double * restrict concs,
                          __constant double * restrict energy_grid,
-                         __constant int * restrict energy_grid_xs,
+                         __global int * restrict energy_grid_xs,
 			 __global NuclideGridPoint * restrict nuclide_grids,
-                         __global int * restrict mats,
+                         __constant int * restrict mats,
                          __global ulong * restrict vhash ){
 
 	int thread = get_group_id(0);

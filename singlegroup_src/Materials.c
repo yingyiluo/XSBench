@@ -214,4 +214,3 @@ int pick_mat( unsigned long * seed )
 
 	return 0;
 }
-

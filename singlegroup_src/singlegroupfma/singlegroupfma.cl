@@ -1,5 +1,5 @@
-//#include "Types.h"
-
+#include "../Types.h"
+/*
 typedef struct __attribute__((packed)) __attribute__((aligned(64))){
 	double energy;
 	double total_xs;
@@ -8,7 +8,7 @@ typedef struct __attribute__((packed)) __attribute__((aligned(64))){
 	double fission_xs;
 	double nu_fission_xs;
 } NuclideGridPoint;
-
+*/
 // Calculates the microscopic cross section for a given nuclide & energy
 void calculate_micro_xs(   double p_energy, int nuc, long n_isotopes,
                            long n_gridpoints, 
@@ -134,62 +134,63 @@ __kernel void calculate_macro_xs(
 			 const uint verification,  
 		         const long n_isotopes, 
 		 	 const long n_gridpoints,
+			 const uint per_thread_lookups,
                          __global int * restrict num_nucs,
                          __global double * restrict concs,
                          __global double * restrict energy_grid,
                          __global int * restrict energy_grid_xs,
 			 __global NuclideGridPoint * restrict nuclide_grids,
                          __global int * restrict mats,
-                         __global ulong * restrict vhash ){
+                         __global ulong * restrict vhash )
+{
+	int thread = get_global_id(0);
+	ulong seed = (thread+1)*19+17;
 
-	int thread = get_group_id(0);
-//	int local_id = get_local_id(0);
-// 	ulong seed = (thread+1)*(local_id+1)*19+17;	
-	int global_id = get_global_id(0);
-	ulong seed = (global_id+1)*19+17;
-
-	#pragma OPENCL EXTENSION cl_khr_fp64 : enable		
-	double p_energy = rn(&seed);
-	int mat = pick_mat(&seed);
-	
-	#pragma OPENCL EXTENSION cl_khr_fp64 : enable	
-	double xs_vector[5];
- 
+	#pragma OPENCL EXTENSION cl_khr_fp64 : enable			
+	double p_energy;
+	int mat;
 	#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 	double macro_xs_vector[5] = {0};
-	int p_nuc; // the nuclide we are looking up
-	long idx = 0;	
-	#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-	double conc; // the concentration of the nuclide in the material
 	
-	// binary search for energy on unionized energy grid (UEG)
-	idx = grid_search( n_isotopes * n_gridpoints, p_energy,
-	                   energy_grid);		
+	for(int n = 0; n < per_thread_lookups; n++)
+	{	
+		p_energy = rn(&seed);
+		mat = pick_mat(&seed);
+	
+		#pragma OPENCL EXTENSION cl_khr_fp64 : enable	
+		double xs_vector[5];
+ 
+		int p_nuc; // the nuclide we are looking up
+		long idx = 0;	
+		#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+		double conc; // the concentration of the nuclide in the material
+	
+		// binary search for energy on unionized energy grid (UEG)
+		idx = grid_search( n_isotopes * n_gridpoints, p_energy,
+	        	           energy_grid);		
 
-        //calculate the index for mats and concs from 2d array
-	int index = 0;
-        for(int i = 0; i < mat; i++ )
-        	index += num_nucs[i];
-	// Once we find the pointer array on the UEG, we can pull the data
-	// from the respective nuclide grids, as well as the nuclide
-	// concentration data for the material
-	// Each nuclide from the material needs to have its micro-XS array
-	// looked up & interpolatied (via calculate_micro_xs). Then, the
-	// micro XS is multiplied by the concentration of that nuclide
-	// in the material, and added to the total macro XS array.
-
-//	#pragma unroll 4
-	for( int j = 0; j < num_nucs[mat]; j++ )
-	{ 
-		int index_j = index + j;
-		p_nuc = mats[index_j];
-                conc = concs[index_j];
-		calculate_micro_xs( p_energy, p_nuc, n_isotopes,
-		                    n_gridpoints, energy_grid_xs,
-		                    nuclide_grids, idx, xs_vector );	
-		#pragma unroll 
-		for( int k = 0; k < 5; k++ ){
- 			macro_xs_vector[k] = mad( xs_vector[k], conc, macro_xs_vector[k] );
+        	//calculate the index for mats and concs from 2d array
+		int index = 0;
+        	for(int i = 0; i < mat; i++ )
+        		index += num_nucs[i];
+		// Once we find the pointer array on the UEG, we can pull the data
+		// from the respective nuclide grids, as well as the nuclide
+		// concentration data for the material
+		// Each nuclide from the material needs to have its micro-XS array
+		// looked up & interpolatied (via calculate_micro_xs). Then, the
+		// micro XS is multiplied by the concentration of that nuclide
+		// in the material, and added to the total macro XS array.	
+		for( int j = 0; j < num_nucs[mat]; j++ )
+		{ 
+			int index_j = index + j;
+			p_nuc = mats[index_j];
+                	conc = concs[index_j];
+			calculate_micro_xs( p_energy, p_nuc, n_isotopes,
+		        	            n_gridpoints, energy_grid_xs,
+		                	    nuclide_grids, idx, xs_vector );	
+			#pragma unroll 
+			for( int k = 0; k < 5; k++ )
+ 				macro_xs_vector[k] = mad( xs_vector[k], conc, macro_xs_vector[k] );
 		}
 	}
 
