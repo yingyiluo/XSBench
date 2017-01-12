@@ -22,8 +22,8 @@ Inputs in;
 int num_dpoints = 0;
 int n_iso_grid;
 CacheData* firstN = NULL;
-int N = 1;
-int STAGE = 0; 
+int N = 15;
+int STAGE = 4; 
 
 //OPENCL config
 unsigned int perthread_lookups;
@@ -191,13 +191,14 @@ int main( int argc, char* argv[] )
 	int *energy_xs = NULL;
 	posix_memalign((void**)&energy_xs, AOCL_ALIGN, n_iso_grid*in.n_isotopes*sizeof(int));	
 	int sample = 0;
+	printf("n_iso_grid is %ld\n", n_iso_grid);
 	for(long il = 0; il < n_iso_grid; il++){
 		energy[il] = energy_grid[il].energy;
 		if( il == (long)((sample+1)*((double)n_iso_grid/(N+1))) )
 		{
 			firstN[sample].data = energy[il];
                         firstN[sample].index = il;
-			//printf("firstN[sample].index is %ld.\n", firstN[sample].index);
+			printf("firstN[sample].index is %ld.\n", firstN[sample].index);
                         sample++;
 		}
 		long j; 
@@ -480,7 +481,7 @@ static bool init_ocl()
 	size_t text_size;
 	FILE *fp;
 	char fn[1024];
-	snprintf(fn, 1024, "CalculateXS.cl");
+	snprintf(fn, 1024, "optbsearch/optbCalculateXS.cl");
 
 	fp = fopen(fn, "r");
 	if (!fp) {
