@@ -2,7 +2,7 @@
 #define __TYPES_HEADER_H__
 
 // Structures
-typedef struct{
+typedef struct  __attribute__((packed)) __attribute__((aligned(64))) {
 	double energy;
 	double total_xs;
 	double elastic_xs;
@@ -17,6 +17,11 @@ typedef struct{
 	double energy;
 	int * xs_ptrs;
 } GridPoint;
+
+typedef struct __attribute__((aligned(16))) {
+	double data;
+	long index;
+} CacheData;
 
 typedef struct{
 	int nthreads;
