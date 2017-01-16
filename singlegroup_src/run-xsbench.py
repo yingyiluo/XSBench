@@ -65,23 +65,27 @@ def output_env(f, platform='Altera'):
 
 
 def bench(outputdir, benchtype, globalsize, platform):
+    btable = {}
+    btable[0] = ['XSBench', 'aocx']
+    btable[1] = ['XSBench', 'aocx'] 
+    # //
 
     label = 't%d-g%d' %  (benchtype, globalsize)
     outputfn = '%s/res-ocl-xsbench-%s.txt' % (outputdir, label)
-    etracelogfn = '%s/etrace-ocl-xsbench-%s.txt' % (outputdir, label)
+#    etracelogfn = '%s/etrace-ocl-xsbench-%s.txt' % (outputdir, label)
 
-    // switch benchtype:  cp /var/tmp/XSBench/ aocx to ...
+    // switch benchtype: cp btable[benchtype[1]]  .
 
     args  = []
 #    args += ['echo']
-    args += ['./etrace/etrace', '-i', '0.1', '-o', etracelogfn]
+#    args += ['./etrace/etrace', '-i', '0.1', '-o', etracelogfn]
     if platform == 'Altera':
         args += ['taskset', '1']
     if platform == 'Intel':
         args += ['numactl', '-m', '0',  '--cpunodebind=0']
     if platform == 'Intel1':
         args += ['numactl', '-m', '1',  '--cpunodebind=1']
-    args += ['./XSBench']
+    args += [ btable[benchtype][0] ]
     args += ['-t', '%d' % gs]
 
     print 'Command:', ' '.join(args)
@@ -116,7 +120,11 @@ def usage():
     print ''
     print '-g globalsize'
     print '-t benchtype'
-    print ''
+    print '   0: base'
+    print '   1: fma'
+    print '   2: cc'
+    print '   3: optbs'
+    print '   4: vec'
 
 if __name__ == '__main__':
 
@@ -124,6 +132,7 @@ if __name__ == '__main__':
     btype = 0 # BASE
     gsizes = [15000000] # no of look
     platform = 'Altera'
+
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'ht:g:', [])
