@@ -1,0 +1,58 @@
+================================================================================
+                   __   __ ___________                 _                        
+                   \ \ / //  ___| ___ \               | |                       
+                    \ V / \ `--.| |_/ / ___ _ __   ___| |__                     
+                    /   \  `--. \ ___ \/ _ \ '_ \ / __| '_ \                    
+                   / /^\ \/\__/ / |_/ /  __/ | | | (__| | | |                   
+                   \/   \/\____/\____/ \___|_| |_|\___|_| |_|                   
+
+================================================================================
+                    Developed at Argonne National Laboratory
+                                   Version: 13
+================================================================================
+                                  INPUT SUMMARY
+================================================================================
+Materials:                    12
+H-M Benchmark Size:           large
+Total Nuclides:               355
+Gridpoints (per Nuclide):     11,303
+Unionized Energy Gridpoints:  4,012,565
+XS Lookups:                   15,000,000
+Threads:                      16
+Est. Memory Usage (MB):       5,740
+================================================================================
+                                 INITIALIZATION
+================================================================================
+Generating Nuclide Energy Grids...
+Sorting Nuclide Energy Grids...
+Generating Unionized Energy Grid...
+Copying and Sorting all nuclide grids...
+Assigning energies to unionized grid...
+Assigning pointers to Unionized Energy Grid...
+
+Loading Mats...
+
+================================================================================
+                                   SIMULATION
+================================================================================
+
+Simulation complete.
+================================================================================
+                                     RESULTS
+================================================================================
+START_TS_SEC=1484625952.931382
+OCL_START_TS_SEC=1484626002.471913
+OCL_KERNEL_TS_SEC=1484626121.567552
+OCL_POST_TS_SEC=1484626130.001442
+OCL_END_TS_SEC=1484626130.017793
+END_TS_SEC=1484626130.032493
+PROFILED_KERNEL_TIME_NSEC=8293121792
+OCL_BEFORE_SEC=119.095639
+OCL_KERNEL_SEC=8.293122
+OCL_AFTER_SEC=0.157119
+TOTAL_OCL_SEC=127.545880
+TOTAL_RUNNING_SEC=177.101111
+BANDWIDTH_LOOKUPS/Sec=1808727.807961
+RAPL_CPU0_ENERGY_J=161.081299 # NOTE: RAPL conditionally works
+RAPL_CPU1_ENERGY_J=656.328094
+RAPL_CPU_ENERGY_DELTA_SEC=8.427666
