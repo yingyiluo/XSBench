@@ -1,0 +1,20 @@
+base.txt
+average power is 33.2803012048
+kernel energy on average is 604.74051323 J
+energy efficiency is 40.3160342154 uJ/lookup
+fma.txt
+average power is 34.7198780488
+kernel energy on average is 623.685911585 J
+energy efficiency is 41.5790607724 uJ/lookup
+cc2mgridpoint.txt
+average power is 33.1588825215
+kernel energy on average is 1267.60130903 J
+energy efficiency is 84.5067539355 uJ/lookup
+optbsearch.txt
+average power is 34.2161157025
+kernel energy on average is 455.14845095 J
+energy efficiency is 30.3432300633 uJ/lookup
+vectornucs.txt
+average power is 33.9493333333
+kernel energy on average is 446.143025192 J
+energy efficiency is 29.7428683461 uJ/lookup
