@@ -10,7 +10,7 @@ There’re pre-compiled docx binaries with different optimizations in /var/tmp/X
 
 3. XSBench
 XSBench runnable has a series of input arguments that you can specify:
--t <threads>     Number of OpenMP threads to run
+-t <threads>     Number of OpenCL work items to run
 -s <size>        Size of H-M Benchmark to run (small, large, XL, XXL)
 -g <gridpoints>  Number of gridpoints per nuclide (overrides -s defaults)
 -l <lookups>     Number of Cross-section (XS) lookups
